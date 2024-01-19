@@ -1,0 +1,4 @@
+[submodule "3rd/ITU-T_pesq-simon"]
+	path = 3rd/ITU-T_pesq-simon
+	url = https://github.com/simon-fu/ITU-T_pesq.git
+	branch = simon-dev
