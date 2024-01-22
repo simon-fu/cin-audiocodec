@@ -1,17 +1,17 @@
 # Build Library
 ```shell
-$ ./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec 
+./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec 
 ``` 
 # Build and Run Test
 ```shell
-$ ./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
 ``` 
 
 # 3rd
 ### ITU-T_pesq
 从 [ITU-T_pesq](https://github.com/simon-fu/ITU-T_pesq/tree/simon-dev) 下载 [zip包](https://codeload.github.com/simon-fu/ITU-T_pesq/zip/refs/heads/simon-dev)，解压缩后创建符号链接
 ```shell
-$ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
+ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 ```  
 
 ### bcg729
@@ -43,8 +43,7 @@ $ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 ```
 [原版](https://downloads.xiph.org/releases/opus/opus-1.4.tar.gz) 都能编译成功。
 ```shell
-$ ./configure --enable-shared=no --enable-static=yes
-$ make
+./configure --enable-shared=no --enable-static=yes && make
 ```
 
 ### spandsp  
@@ -61,13 +60,13 @@ $ make
   kylin10 和 M1 都编译成功，但configure命令不一样。  
   M1： 
     ```shell  
-    $ ./configure --enable-shared=no --enable-static=yes 
+    ./configure --enable-shared=no --enable-static=yes 
     ```
 
   
   kylin10：    
     ```shell
-    $ ./configure --enable-shared=no --enable-static=yes --build=aarch64-unknown-linux-gnu
+    ./configure --enable-shared=no --enable-static=yes --build=aarch64-unknown-linux-gnu
     ```
   kylin10 如果没有 --build=aarch64-unknown-linux-gnu 会提示
     ```shell
