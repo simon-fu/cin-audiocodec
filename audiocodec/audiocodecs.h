@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <memory>
+#include <string>
 
 
 class CAudioEncoder

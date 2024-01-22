@@ -224,8 +224,8 @@ class CAacDecoder : public CAudioDecoder
             return -__LINE__;
          }
 
-         const uint bufferSize = *pinSize;
-         uint valid = *pinSize;
+         const UINT bufferSize = *pinSize;
+         UINT valid = *pinSize;
          AAC_DECODER_ERROR decErr = aacDecoder_Fill(m_state, (uint8_t**)&in, &bufferSize, &valid);
          if (decErr != AAC_DEC_OK) {
             return -1;

@@ -19,7 +19,7 @@ OBJ=${SOURCE:.cpp=.o}
 INCLUDE=-I . -I .. \
 		 -I $(THIRD_DIR)/spandsp-0.0.6/src \
 		 -I $(THIRD_DIR)/tiff-3.7.1/libtiff \
-		 -I $(THIRD_DIR)/opus-1.4/out/include/opus \
+		 -I $(THIRD_DIR)/opus-1.4/include \
 		 -I $(THIRD_DIR)/vo-amrwbenc-0.1.3 \
 		 -I $(THIRD_DIR)/vo-amrwbenc-0.1.3/common/include \
 		 -I $(THIRD_DIR)/opencore-amr-0.1.6 \
@@ -52,7 +52,7 @@ ${OUT_LIB}:${OBJ}
 # $(OUT): $(SOURCE:.cpp=.o)
 # 	$(CC) -o $@ $^ $(LIBS)
 
-include $(SOURCE:.cpp=.d)
+# include $(SOURCE:.cpp=.d)
 
 %.d: %.cpp
 	set -e; rm -f $@; \
@@ -63,6 +63,10 @@ include $(SOURCE:.cpp=.d)
 .PHONY: test
 test: ${OUT_LIB}
 	make -C test
+
+.PHONY: 3rd
+3rd: 
+	make -C test 3rd
 
 clean:
 	rm -f $(OUT_LIB)

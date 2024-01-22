@@ -7,6 +7,7 @@ extern "C" {
 };
 
 
+
 class CG711Encoder : public CAudioEncoder
 {
    public:
