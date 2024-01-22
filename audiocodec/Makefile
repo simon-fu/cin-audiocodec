@@ -42,7 +42,7 @@ CPPFLAGS=-g $(DEBUGMEM) -Wall -Wno-literal-suffix -Wno-sign-compare \
 		
 CC=g++
 
-out:${OUT_LIB}
+out: ${3rd} ${OBJ}
 	@echo make completed.
 
 ${OUT_LIB}:${OBJ}

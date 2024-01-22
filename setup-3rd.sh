@@ -66,7 +66,7 @@ function reset() {
 function get_3rd() {
     local url="https://github.com/simon-fu/cin-audiocodec/releases/download/3rd/3rd.tar.gz"
     echo "downloading [$url]"
-    fail2die curl -v -L $url -o $THIZ_3RD_GZFILE
+    fail2die curl -L $url -o $THIZ_3RD_GZFILE
     echo "downloaded [$THIZ_3RD_GZFILE]"
 }
 

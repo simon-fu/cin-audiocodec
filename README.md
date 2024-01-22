@@ -1,4 +1,14 @@
-## ITU-T_pesq
+# Build Library
+```shell
+$ ./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec 
+``` 
+# Build and Run Test
+```shell
+$ ./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+``` 
+
+# 3rd
+### ITU-T_pesq
 从 [ITU-T_pesq](https://github.com/simon-fu/ITU-T_pesq/tree/simon-dev) 下载 [zip包](https://codeload.github.com/simon-fu/ITU-T_pesq/zip/refs/heads/simon-dev)，解压缩后创建符号链接
 ```shell
 $ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
@@ -26,7 +36,7 @@ $ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 下载并解压缩 [vo-amrwbenc-0.1.3.tar.gz](https://jaist.dl.sourceforge.net/project/opencore-amr/vo-amrwbenc/vo-amrwbenc-0.1.3.tar.gz)  
 
 
-## opus
+### opus
 编译svn 原版，M1 成功， 但kylin10 失败。
 ```
 /home/funing/opus-1.4/missing:行81: automake-1.13：未找到命令
@@ -37,7 +47,7 @@ $ ./configure --enable-shared=no --enable-static=yes
 $ make
 ```
 
-## spandsp  
+### spandsp  
 
 - svn 原版 spandsp-0.0.6   
   在 kylin10 (192.168.2.52) 上编译失败，苹果M1也编译失败。  
@@ -74,14 +84,4 @@ $ make
 ### minimp3
 下载 [minimp3](https://github.com/lieff/minimp3) 两个头文件 
 
-### kylin10 和 M1 都编译成功
-ITU-T_pesq-simon-dev  
-bcg729-1.1.1  
-fdk-aac-2.0.3  
-lame-3.100  
-opencore-amr-0.1.6  
-speexdsp-1.2.1
-vo-amrwbenc-0.1.3
 
-### 待定
-minimp3  
