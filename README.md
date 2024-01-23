@@ -110,8 +110,3 @@ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 ### minimp3
 下载 [minimp3](https://github.com/lieff/minimp3) 两个头文件 
 
-
-## TODO
-- CAudioTranscoder::push 要缓存输入数据（如果decoder没有消费完）
-- make -C audiocodec 自动编译 3rd
-- 去除MacOS编译警告

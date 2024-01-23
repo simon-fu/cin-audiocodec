@@ -11,7 +11,7 @@ class RwBuf
    public:
       void reinit(int size)
       {
-         this->buf.resize(size, 0);
+         this->buf.resize(size);
          this->pos = 0;
          this->end = 0;
       }
@@ -56,6 +56,20 @@ class RwBuf
          this->end += cnt;
       }
 
+      void reserve(int extra)
+      {
+         this->buf.resize(this->buf.size() + extra);
+      }
+
+      void append(const T * in, int inlen)
+      {
+         if (this->wSize() < inlen)
+         {
+            this->reserve(inlen - this->wSize());
+         }
+
+         std::memcpy(this->wBuf(), in, inlen*sizeof(T));
+      }
       
       const T * rData()
       {
@@ -280,19 +294,39 @@ class CAudioTranscoderImpl: public CAudioTranscoder
 
    virtual int push(const uint8_t data[], int len) override
    {
+      int ret = 0;
+
       m_srcPcm.trim();
 
-      int inlen = len;
-      int ret = m_srcDec->decode(data, &inlen, m_srcPcm.wBuf(), m_srcPcm.wSize());
-      // printf("trans src decode ret %d\n", ret);
-      if (ret < 0)
+      if (m_srcBuf.rLen() > 0)
       {
-         return ret;
+         m_srcBuf.trim();
+         m_srcBuf.append(data, len);
+
+         ret = this->tryDecodeInternal();
+         if (ret < 0)
+         {
+            return ret;
+         }
+      }
+      else 
+      {
+         int consumed = len;
+         ret = m_srcDec->decode(data, &consumed, m_srcPcm.wBuf(), m_srcPcm.wSize());
+         // printf("trans src decode ret %d\n", ret);
+         if (ret < 0)
+         {
+            return ret;
+         }
+         m_srcPcm.wAdvance(ret);
+
+         if (consumed < len)
+         {
+            m_srcBuf.append(data+consumed, len-consumed);
+         }
       }
 
-      // printf("trans src buf remains1 %d\n", m_srcPcm.remains());
-      m_srcPcm.wAdvance(ret);
-      // printf("trans src buf remains2 %d\n", m_srcPcm.remains());
+      
 
       // if (this->m_resampler)
       // {
@@ -331,7 +365,7 @@ class CAudioTranscoderImpl: public CAudioTranscoder
          m_srcPcm.rAdvance(in_len * m_srcCodec.channels.value());
       }
 
-      return inlen;
+      return len;
    }
    
    virtual int pull(uint8_t buf[], const int bufSize) override
@@ -340,6 +374,16 @@ class CAudioTranscoderImpl: public CAudioTranscoder
 
       int remains = pcmbuf->remains();
       int expect = (m_dstCodec.framesize.value() * m_dstCodec.channels.value());
+
+      if (remains <  expect)
+      {
+         int ret = this->tryDecodeInternal();
+         if (ret <= 0)
+         {
+            return ret;
+         }
+      }
+
       if (remains >=  expect)
       {
          int ret = m_dstEnc->encode(pcmbuf->rData(), expect, buf, bufSize);
@@ -365,6 +409,23 @@ class CAudioTranscoderImpl: public CAudioTranscoder
    }
 
    private:
+      int tryDecodeInternal()
+      {
+         int inlen = m_srcBuf.rLen();
+         if (inlen > 0)
+         {
+            int ret = m_srcDec->decode(m_srcBuf.rData(), &inlen, m_srcPcm.wBuf(), m_srcPcm.wSize());
+            if (ret < 0)
+            {
+               return ret;
+            }
+            m_srcPcm.wAdvance(ret);
+
+            m_srcBuf.rAdvance(inlen);
+         }
+         return inlen;
+      }
+
       PcmBuf* getPcmBuf()
       {
          if (m_speexResampler)

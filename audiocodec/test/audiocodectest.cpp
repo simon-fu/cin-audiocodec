@@ -1017,8 +1017,9 @@ static ErrMsg testTranscode(TestContext& ctx, const CTransCase& desc, int caseIn
       srcEncPos = 0;
       while (srcEncPos < encLen)
       {
+         int remains = encLen-srcEncPos;
          // printf("before trans push: srcEncPos %d, encLen %d\n", srcEncPos, encLen);
-         int ret = transcoder->push(srcEncVec.data()+srcEncPos, encLen-srcEncPos);
+         int ret = transcoder->push(srcEncVec.data()+srcEncPos, remains);
          // printf("trans push ret %d\n", ret);
          if (ret < 0) 
          {
@@ -1030,7 +1031,9 @@ static ErrMsg testTranscode(TestContext& ctx, const CTransCase& desc, int caseIn
          }
          else 
          {
-            srcEncPos += ret;
+            srcEncPos += remains;
+            // srcEncPos += ret;
+            
             // printf("after trans push: srcEncPos %d, encLen %d\n", srcEncPos, encLen);
          }
       }
