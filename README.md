@@ -1,7 +1,7 @@
-## Download 3rd and PCM files
+## Prepare 3rd and PCM files
 3rd 和 测试PCM文件 打包放在github，下载时可能需要代理，在脚本里搜 get_3rd get_pcm 可找到下载链接。
 ```shell
-./setup-3rd.sh auto 
+./build.sh setup 
 ``` 
 
 ## Build Library
@@ -11,6 +11,12 @@ make -C audiocodec 3rd && make -C audiocodec
 ## Build and Test
 ```shell
 make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+``` 
+
+## Clean 
+删除 3rd目录， pcm文件目录，和一些中间文件
+```shell
+./build.sh clean 
 ``` 
 
 ## 3rd

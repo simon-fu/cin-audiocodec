@@ -22,7 +22,11 @@ function fail2die {
 
 function clean() {
     echo cleaning ...
+
+    make -C audiocodec/ clean
     rm -rf $THIZ_3RD_DIR
+    rm -rf $THIZ_PCM_DIR
+
     # rm -f ITU-T_pesq  
     # rm -rf ITU-T_pesq-simon-dev/
     # rm -rf bcg729-1.1.1/
@@ -90,7 +94,7 @@ function unpack() {
 
 function reset() {
     fail2die clean
-    fail2die unpack
+    fail2die setup
 }
 
 function download() {
@@ -102,7 +106,7 @@ function auto_get () {
     local get_func=$1
     local dir=$2
     local file=$3
-    local unpack_pcm=$4
+    local unpack_func=$4
 
     if [ -d "$dir" ]; then 
         echo "exist dir [$dir], skip download"
@@ -111,15 +115,15 @@ function auto_get () {
 
     if [ -f "$file" ]; then 
         echo "exist file [$file], unpack it"
-        fail2die $unpack_pcm
+        fail2die $unpack_func
         return
     fi
 
     fail2die $get_func
-    fail2die $unpack_pcm
+    fail2die $unpack_func
 }
 
-function auto () {
+function setup () {
     auto_get get_3rd $THIZ_3RD_DIR $THIZ_3RD_GZFILE unpack_3rd
     auto_get get_pcm $THIZ_PCM_DIR $THIZ_PCM_GZFILE unpack_pcm
 
@@ -139,10 +143,10 @@ function help() {
     echo "  $0 <cmd>"
     echo "  "
     echo "  commands: "
-    echo "    auto      auto download and unpack"
-    echo "    download  download 3rd package file"
+    echo "    setup     auto download and unpack"
+    # echo "    download  download 3rd and pcm file"
     echo "    clean     delete directories"
-    echo "    unpack    unpack/unzip files"
+    # echo "    unpack    unpack/unzip files"
     echo "    reset     clean and unpack"
 }
 
