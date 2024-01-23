@@ -61,6 +61,11 @@ public:
       
    }
 
+   void generate(int16_t* buffer, int bufferSize) {
+      this->generateTone(buffer, bufferSize);
+      // this->generateSpeechFreq(buffer, bufferSize);
+   }
+
    void generateTone(int16_t* buffer, int bufferSize) {
       int channels = m_channels;
       for (int i = 0; i < bufferSize; i += channels) {
@@ -77,6 +82,24 @@ public:
          }
       }
    }
+
+   // void generateSpeechFreq(int16_t* buffer, int bufferSize) {
+   //    const double TWO_PI = 6.283185307179586476925286766559;
+   //    const double MAX_AMP = 32760;  // "volume"
+
+   //    double hz = 300.0;
+   //    for (int n = 0; n < bufferSize; n++) {
+   //       // Gradually increase the frequency from 300Hz to 3400Hz
+   //       if (n % 100 == 0 && hz < 3400.0) {
+   //          hz += 10.0;
+   //       }
+
+   //       // double amplitude = (double)n / bufferSize * MAX_AMP;
+   //       // double value     = sin((TWO_PI * hz / m_sampleRate) * n) * amplitude;
+   //       double value     = sin((TWO_PI * hz / m_sampleRate) * n) * MAX_AMP;
+   //       buffer[n] = (short)value;
+   //    }
+   // }
 };
 
 static int write_to_file(const std::string& filename, const char * buffer, std::streamsize length)
@@ -246,7 +269,7 @@ struct PcmBuf
       m_pcmBuf = std::vector<int16_t>(length, 0);
 
       ToneGenerator gen = ToneGenerator(samplingRate, channels);
-      gen.generateTone(m_pcmBuf.data(), m_pcmBuf.size());
+      gen.generate(m_pcmBuf.data(), m_pcmBuf.size());
 
       // m_encBuf = std::vector<uint8_t>(m_pcmBuf.size(), 0);
       // m_decBuf = std::vector<int16_t>(m_pcmBuf.size(), 0);
@@ -289,13 +312,14 @@ struct PcmBuf
 
 struct TestContext
 {
+   bool forceGen;
    std::string dumpDir;
    int maxMillis;
    PcmBuf pcmBuf;
 
-   ErrMsg makePcmData(const std::string& pcmFile, const AudioCodecArgs& args, int millis)
+   ErrMsg makePcmData(const bool& forceGen, const std::string& pcmFile, const AudioCodecArgs& args, int millis)
    {
-      if (pcmFile.empty())
+      if (pcmFile.empty() || forceGen)
       {
          auto ret = pcmBuf.genPcm(args.samplerate.value(), args.channels.value(), (millis + 999)/1000);
          if (ret != 0)
@@ -361,7 +385,7 @@ class Tester
          m_pcmBuf = std::vector<int16_t>(length, 0);
 
          ToneGenerator gen = ToneGenerator(samplingRate, channels);
-         gen.generateTone(m_pcmBuf.data(), m_pcmBuf.size());
+         gen.generate(m_pcmBuf.data(), m_pcmBuf.size());
 
          m_encBuf = std::vector<uint8_t>(m_pcmBuf.size(), 0);
          m_decBuf = std::vector<int16_t>(m_pcmBuf.size(), 0);
@@ -610,6 +634,7 @@ struct CTransCase {
    std::string pcmFile;
    CodecLegDesc src; 
    CodecLegDesc dst; 
+   float mos;
 };
 
 struct CCodecHub
@@ -619,7 +644,7 @@ struct CCodecHub
    CAudioDecoderPtr decoder;
 };
 
-static CCodecHub buildCodec(CAudioCodec codec)
+static CCodecHub buildCodec(const CAudioCodec& codec)
 {
    return CCodecHub
    {
@@ -858,7 +883,7 @@ static int calcPESQ
             return -__LINE__;
          }
 
-         printf("check: mos=%.3f, Hz=%d, ch=%d, ref.len=%ld, deg.len=%ld \n", mapped_mos, samplerate, ch, refBuf1.size(), degBuf1.size());
+         // printf("check ch: mos=%.3f, Hz=%d, ch=%d, ref.len=%ld, deg.len=%ld \n", mapped_mos, samplerate, ch, refBuf1.size(), degBuf1.size());
 
          if (mapped_mos < *p_mos)
          {
@@ -872,15 +897,31 @@ static int calcPESQ
 
 static ErrMsg testTranscode(TestContext& ctx, const CTransCase& desc, int caseIndex )
 {
-   // int millis = 5000;
    
+   auto src = buildCodec(desc.src.getter());
+   auto dst = buildCodec(desc.dst.getter());
+
+   std::string caseName ;
+   if (src.codec.name == get_acopy_codec().name)
    {
-      auto ret = ctx.makePcmData(desc.pcmFile, desc.src.args, ctx.maxMillis);
+      caseName = strFormat("codec [%s]-[%dHz-%dch-%d]", dst.codec.name.c_str(), desc.dst.args.samplerate.value(), desc.dst.args.channels.value(), desc.dst.args.framesize.value());
+   }
+   else
+   {
+      caseName = strFormat(
+         "trascode [%s]-[%dHz-%dch-%d] => [%s]-[%dHz-%dch-%d]", 
+         src.codec.name.c_str(), desc.src.args.samplerate.value(), desc.src.args.channels.value(), desc.src.args.framesize.value(),
+         dst.codec.name.c_str(), desc.dst.args.samplerate.value(), desc.dst.args.channels.value(), desc.dst.args.framesize.value()
+      );
+   }
+   
+
+   {
+      auto ret = ctx.makePcmData(ctx.forceGen, desc.pcmFile, desc.src.args, ctx.maxMillis);
       ret_if_err(ret);
    }
 
-   auto src = buildCodec(desc.src.getter());
-   auto dst = buildCodec(desc.dst.getter());
+   
 
    {
       auto& pair = src;
@@ -1096,12 +1137,19 @@ static ErrMsg testTranscode(TestContext& ctx, const CTransCase& desc, int caseIn
          return ErrMsg::fmt("calc pesq error [%d]", ret);
       }
 
-      // if (mos < 4.0f)
-      // {
-      //    return ErrMsg::fmt("pesq mos [%.3f] < [4.0]", mos);
-      // }
+      float expect_mos = desc.mos;
+      // float expect_mos = 2.0f; 
+      if (mos < expect_mos)
+      {
+         return ErrMsg::fmt("[%s]: low pesq mos [%.3f] < [%.3f]", caseName.c_str(), mos, expect_mos);
+      }
 
-      std::cout << "pesq score: " << mos << std::endl;
+      std::cout << "Case " << caseName << ": pesq score " 
+         << mos 
+         << " >= "  
+         // << std::setw(3) << std::setfill('0') 
+         << expect_mos 
+         << ", PASS "<< std::endl;
 
    }
 
@@ -1189,21 +1237,22 @@ struct AudioFile
 // #define AARG_MILLIS(ch, hz, millis) {.channels=ch, .samplerate = hz, .framesize = FRAME_SIZE(hz, millis)}
 #define AARG_SAMPLES(ch, hz, samples) {.channels=ch, .samplerate = hz, .framesize = samples}
 
-#define TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext) \
+#define TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext, moscode) \
 { \
    .pcmFile=(file).filepath, \
    .src={srcmaker, AARG_SAMPLES((file).channels, (file).samplerate, srcframe.framesize((file).samplerate)), ""}, \
-   .dst={dstmaker, AARG_SAMPLES((file).channels, dsthz, dstframe.framesize(dsthz)), dstext} \
+   .dst={dstmaker, AARG_SAMPLES((file).channels, dsthz, dstframe.framesize(dsthz)), dstext}, \
+   .mos=moscode \
 }
 
-#define TRANS_CASE(file, srcmaker, srcframe, dstmaker, dstframe, dsthz) \
-TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, "")
+#define TRANS_CASE(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, moscode) \
+TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, "", moscode)
 
-#define TRANS_CASE2(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext) \
-TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext)
+#define TRANS_CASE2(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext, moscode) \
+TRANS_CASE_FULL(file, srcmaker, srcframe, dstmaker, dstframe, dsthz, dstext, moscode)
 
-#define CODEC_CASE(file, dstmaker, dstframe, dsthz, dstext) \
-TRANS_CASE_FULL(file, get_acopy_codec, dstframe, dstmaker, dstframe, dsthz, dstext)
+#define CODEC_CASE(file, dstmaker, dstframe, dsthz, dstext, moscode) \
+TRANS_CASE_FULL(file, get_acopy_codec, dstframe, dstmaker, dstframe, dsthz, dstext, moscode)
 
 
 int testResampler(const std::string& srcFile, const AudioCodecArgs& srcArgs, const std::string& dstFile, const AudioCodecArgs& dstArgs)
@@ -1427,7 +1476,25 @@ int testSpeexResampler(const std::string& srcFile, const AudioCodecArgs& srcArgs
 // }
 
 
-int main() 
+#include <string>
+// #include <filesystem>
+
+// static std::string get_directory(const std::string& path) {
+//     return std::filesystem::path(path).parent_path().string();
+// }
+
+static std::string get_directory(const std::string& path) {
+    size_t pos = path.find_last_of("\\/");
+    return (std::string::npos == pos) ? "" : path.substr(0, pos);
+}
+
+static std::string get_thiz_directory() {
+    return get_directory(__FILE__);
+}
+
+
+
+int main(int argc, char *argv[]) 
 {
    // {
    //    int ret = test_mp3_decode("/tmp/dst_002_mp3_48000hz2ch.mp3", "/tmp/dst_002_mp3_48000hz2ch.pcm");
@@ -1461,49 +1528,56 @@ int main()
    // }
 
    {
-      // empty string for disable dump output file
-      auto dumpDir = "/tmp"; 
+      // auto thiz_dir = get_thiz_directory();
+      const auto thiz_dir = get_directory(argv[0]);
+      std::cout << "thiz_dir " << thiz_dir << std::endl;
 
-      TestContext ctx = {.dumpDir=dumpDir, .maxMillis = 5000};
+      const auto pcm_dir = thiz_dir + "/../../sample_pcm/";
+      std::cout << "pcm_dir " << pcm_dir << std::endl;
+      
+      auto dumpDir = ""; // "/tmp"; // empty string for disable dump output file
+      auto forceGen = false;
+
+      TestContext ctx = {.forceGen=forceGen, .dumpDir=dumpDir, .maxMillis = 5000};
 
       AudioFile file48000Hz1ch = 
       {
-         .filepath = "/tmp/sample-48000Hz-1ch.pcm", 
+         .filepath = pcm_dir + "sample-48000Hz-1ch.pcm", 
          .samplerate = Samplerate(48000),
          .channels = Channels(1),  
       };
 
       AudioFile file48000Hz2ch = 
       {
-         .filepath = "/tmp/sample-48000Hz-2ch.pcm", 
+         .filepath = pcm_dir + "sample-48000Hz-2ch.pcm", 
          .samplerate = Samplerate(48000),
          .channels = Channels(2), 
       };
 
       AudioFile file16000Hz1ch = 
       {
-         .filepath = "/tmp/sample-16000Hz-1ch.pcm", 
+         .filepath = pcm_dir + "sample-16000Hz-1ch.pcm", 
          .samplerate = Samplerate(16000),
          .channels = Channels(1),  
       };
 
       AudioFile file16000Hz2ch = 
       {
-         .filepath = "/tmp/sample-16000Hz-2ch.pcm", 
+         .filepath = pcm_dir + "sample-16000Hz-2ch.pcm", 
          .samplerate = Samplerate(16000),
          .channels = Channels(2),  
       };
 
       AudioFile file8000Hz1ch = 
       {
-         .filepath = "/tmp/sample-8000Hz-1ch.pcm", 
+         .filepath = pcm_dir + "sample-8000Hz-1ch.pcm", 
          .samplerate = Samplerate(8000),
          .channels = Channels(1),  
       };
 
       AudioFile file8000Hz2ch = 
       {
-         .filepath = "/tmp/sample-8000Hz-2ch.pcm", 
+         .filepath = pcm_dir + "sample-8000Hz-2ch.pcm", 
          .samplerate = Samplerate(8000),
          .channels = Channels(2),  
       };
@@ -1511,178 +1585,178 @@ int main()
       int ptime = 20;
 
       const std::vector<CTransCase> cases = {
-         // // opus 1 channel
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(24000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file16000Hz1ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(16000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file16000Hz1ch,
-         //    get_opus_codec, FrameMillis(10), Samplerate(12000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file8000Hz1ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(8000), ""
-         // ),
+         // opus 1 channel
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(48000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(24000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file16000Hz1ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(16000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file16000Hz1ch,
+            get_opus_codec, FrameMillis(10), Samplerate(12000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file8000Hz1ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(8000), "", 3.3f
+         ),
 
-         // // opus 2 channels
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(24000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file16000Hz2ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(16000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file16000Hz2ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(12000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file8000Hz2ch,
-         //    get_opus_codec, FrameMillis(ptime), Samplerate(8000), ""
-         // ),
+         // opus 2 channels
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(48000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(24000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file16000Hz2ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(16000), "", 3.8f
+         ),
+         CODEC_CASE
+         (
+            file16000Hz2ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(12000), "", 3.3f
+         ),
+         CODEC_CASE
+         (
+            file8000Hz2ch,
+            get_opus_codec, FrameMillis(ptime), Samplerate(8000), "", 3.0f
+         ),
 
 
 
-         // // alaw
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_alaw_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_alaw_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
+         // alaw
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_alaw_codec, FrameMillis(ptime), Samplerate(48000), "", 4.2f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_alaw_codec, FrameMillis(ptime), Samplerate(48000), "", 4.2f
+         ),
 
-         // // ulaw
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_ulaw_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_ulaw_codec, FrameMillis(ptime), Samplerate(48000), ""
-         // ),
+         // ulaw
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_ulaw_codec, FrameMillis(ptime), Samplerate(48000), "", 4.2f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_ulaw_codec, FrameMillis(ptime), Samplerate(48000), "", 4.2f
+         ),
 
-         // // amrwb
-         // CODEC_CASE
-         // (
-         //    file16000Hz1ch,
-         //    get_amrwb_codec, FrameMillis(ptime), Samplerate(16000), ""
-         // ),
+         // amrwb
+         CODEC_CASE
+         (
+            file16000Hz1ch,
+            get_amrwb_codec, FrameMillis(ptime), Samplerate(16000), "", 4.0f 
+         ),
 
-         // // amrnb
-         // CODEC_CASE
-         // (
-         //    file8000Hz1ch,
-         //    get_amrnb_codec, FrameMillis(ptime), Samplerate(8000), ""
-         // ),
+         // amrnb
+         CODEC_CASE
+         (
+            file8000Hz1ch,
+            get_amrnb_codec, FrameMillis(ptime), Samplerate(8000), "", 3.7f
+         ),
 
-         // // aac
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_aac_codec, FrameSamples(1024), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz1ch,
-         //    get_aac_codec, FrameSamples(1024), Samplerate(44100), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_aac_codec, FrameSamples(1024), Samplerate(48000), ""
-         // ),
-         // CODEC_CASE
-         // (
-         //    file48000Hz2ch,
-         //    get_aac_codec, FrameSamples(1024), Samplerate(44100), ""
-         // ),
+         // aac
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_aac_codec, FrameSamples(1024), Samplerate(48000), "", 3.2f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz1ch,
+            get_aac_codec, FrameSamples(1024), Samplerate(44100), "", 3.2f 
+         ),
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_aac_codec, FrameSamples(1024), Samplerate(48000), "", 3.2f
+         ),
+         CODEC_CASE
+         (
+            file48000Hz2ch,
+            get_aac_codec, FrameSamples(1024), Samplerate(44100), "", 2.8f
+         ),
 
-         // // g729
-         // CODEC_CASE
-         // (
-         //    file8000Hz1ch,
-         //    get_g729_codec, FrameMillis(10), Samplerate(8000), ".g729"
-         // ),
-         // CODEC_CASE
-         // (
-         //    file8000Hz1ch,
-         //    get_g729_codec, FrameMillis(20), Samplerate(8000), ".g729"
-         // ),
+         // g729
+         CODEC_CASE
+         (
+            file8000Hz1ch,
+            get_g729_codec, FrameMillis(10), Samplerate(8000), ".g729", 2.8f 
+         ),
+         CODEC_CASE
+         (
+            file8000Hz1ch,
+            get_g729_codec, FrameMillis(20), Samplerate(8000), ".g729", 2.8f 
+         ),
 
          // mp3
          CODEC_CASE
          (
             file48000Hz1ch,
-            get_mp3_codec, FrameMillis(20), Samplerate(48000), ".mp3"
+            get_mp3_codec, FrameMillis(20), Samplerate(48000), ".mp3", 4.2f
          ),
          CODEC_CASE
          (
             file48000Hz2ch,
-            get_mp3_codec, FrameMillis(20), Samplerate(48000), ".mp3"
+            get_mp3_codec, FrameMillis(20), Samplerate(48000), ".mp3", 4.2f
          ),
          CODEC_CASE
          (
             file16000Hz1ch,
-            get_mp3_codec, FrameMillis(20), Samplerate(16000), ".mp3"
+            get_mp3_codec, FrameMillis(20), Samplerate(16000), ".mp3", 4.2f
          ),
 
 
 
-         // TRANS_CASE
-         // (
-         //    file48000Hz1ch, 
-         //    get_aac_codec, FrameSamples(1024),
-         //    get_opus_codec, FrameMillis(20), Samplerate(48000)
-         // ),
-         // TRANS_CASE
-         // (
-         //    file48000Hz1ch, 
-         //    get_aac_codec, FrameSamples(1024),
-         //    get_opus_codec, FrameMillis(20), Samplerate(16000)
-         // ),
-         // TRANS_CASE
-         // (
-         //    file48000Hz2ch, 
-         //    get_aac_codec, FrameSamples(1024),
-         //    get_opus_codec, FrameMillis(20), Samplerate(16000)
-         // ),
-         // TRANS_CASE2
-         // (
-         //    file48000Hz2ch, 
-         //    get_opus_codec, FrameMillis(20),
-         //    get_aac_codec, FrameSamples(1024), Samplerate(44100),
-         //    ".aac"
-         // ),
+         TRANS_CASE
+         (
+            file48000Hz1ch, 
+            get_aac_codec, FrameSamples(1024),
+            get_opus_codec, FrameMillis(20), Samplerate(48000), 2.6f 
+         ),
+         TRANS_CASE
+         (
+            file48000Hz1ch, 
+            get_aac_codec, FrameSamples(1024),
+            get_opus_codec, FrameMillis(20), Samplerate(16000), 2.6f
+         ),
+         TRANS_CASE
+         (
+            file48000Hz2ch, 
+            get_aac_codec, FrameSamples(1024),
+            get_opus_codec, FrameMillis(20), Samplerate(16000), 2.5f
+         ),
+         TRANS_CASE2
+         (
+            file48000Hz2ch, 
+            get_opus_codec, FrameMillis(20),
+            get_aac_codec, FrameSamples(1024), Samplerate(44100),
+            ".aac", 2.5f // 3.0f
+         ),
       };
 
       int index = 0;

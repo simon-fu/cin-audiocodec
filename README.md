@@ -1,13 +1,19 @@
-# Build Library
+## Download 3rd and PCM files
+3rd 和 测试PCM文件 打包放在github，下载时可能需要代理，在脚本里搜 get_3rd get_pcm 可找到下载链接。
 ```shell
-./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec 
-``` 
-# Build and Run Test
-```shell
-./setup-3rd.sh auto && make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+./setup-3rd.sh auto 
 ``` 
 
-# 3rd
+## Build Library
+```shell
+make -C audiocodec 3rd && make -C audiocodec 
+``` 
+## Build and Test
+```shell
+make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+``` 
+
+## 3rd
 ### ITU-T_pesq
 从 [ITU-T_pesq](https://github.com/simon-fu/ITU-T_pesq/tree/simon-dev) 下载 [zip包](https://codeload.github.com/simon-fu/ITU-T_pesq/zip/refs/heads/simon-dev)，解压缩后创建符号链接
 ```shell
@@ -84,3 +90,5 @@ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 下载 [minimp3](https://github.com/lieff/minimp3) 两个头文件 
 
 
+## TODO
+- CAudioTranscoder::push 要缓存输入数据（如果decoder没有消费完）

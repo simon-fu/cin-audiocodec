@@ -38,7 +38,7 @@ Depend3rdLibs=\
 		$(THIRD_DIR)/fdk-aac-2.0.3/.libs/libfdk-aac.a \
 		$(THIRD_DIR)/speexdsp-1.2.1/libspeexdsp/.libs/libspeexdsp.a \
 		$(THIRD_DIR)/bcg729-1.1.1/target/src/libbcg729.a \
-		$(THIRD_DIR)/lame-3.100/out/lib/libmp3lame.a \
+		$(THIRD_DIR)/lame-3.100/lib/libmp3lame.a \
 		$(THIRD_DIR)/ITU-T_pesq/libpesqraw.a
 
 DependLibs= $(LIB_DIR)/lib$(LIB_NAME).a $(Depend3rdLibs)
@@ -121,7 +121,7 @@ $(THIRD_DIR)/bcg729-1.1.1/target/src/libbcg729.a:
 	cmake3 .. -DENABLE_SHARED=NO -DENABLE_TESTS=NO && \
 	make
 
-$(THIRD_DIR)/lame-3.100/out/lib/libmp3lame.a:
+$(THIRD_DIR)/lame-3.100/lib/libmp3lame.a:
 	make -C $(THIRD_DIR)/lame-3.100 -f make.lame
 
 $(THIRD_DIR)/ITU-T_pesq/libpesqraw.a:
