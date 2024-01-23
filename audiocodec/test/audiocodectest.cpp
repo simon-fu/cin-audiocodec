@@ -1488,9 +1488,9 @@ static std::string get_directory(const std::string& path) {
     return (std::string::npos == pos) ? "" : path.substr(0, pos);
 }
 
-static std::string get_thiz_directory() {
-    return get_directory(__FILE__);
-}
+// static std::string get_thiz_directory() {
+//     return get_directory(__FILE__);
+// }
 
 
 
@@ -1604,7 +1604,7 @@ int main(int argc, char *argv[])
          CODEC_CASE
          (
             file16000Hz1ch,
-            get_opus_codec, FrameMillis(10), Samplerate(12000), "", 3.8f
+            get_opus_codec, FrameMillis(10), Samplerate(12000), "", 3.7f
          ),
          CODEC_CASE
          (

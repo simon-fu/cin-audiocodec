@@ -118,7 +118,7 @@ class CMp3Encoder : public CAudioEncoder
          }
       }
 
-      virtual int flush(uint8_t*out, int outSize)
+      virtual int flush(uint8_t*out, int outSize) override
       {
          if (!m_state)
          {

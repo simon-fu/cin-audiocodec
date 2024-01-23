@@ -14,7 +14,7 @@ SOURCE=audiocodecs.cpp \
 		g729codec.cpp \
 		mp3codec.cpp 
 		 
-OBJ=${SOURCE:.cpp=.o}
+OBJS=${SOURCE:.cpp=.o}
 
 INCLUDE=-I . -I .. \
 		 -I $(THIRD_DIR)/spandsp-0.0.6/src \
@@ -31,22 +31,39 @@ INCLUDE=-I . -I .. \
 		 -I $(THIRD_DIR)/lame-3.100/include \
 		 -I $(THIRD_DIR)/minimp3 
 
+CPPFLAGS=-g $(DEBUGMEM) -Wall
 
-CPPFLAGS=-g $(DEBUGMEM) -Wall -Wno-literal-suffix -Wno-sign-compare \
+ifeq ($(shell uname),Darwin)
+    CPPFLAGS += -Wno-reserved-user-defined-literal
+else
+    CPPFLAGS += -Wno-literal-suffix
+endif
+
+CPPFLAGS += -Wno-sign-compare \
 			-O2 \
 			-std=c++11 \
 			-Wno-non-virtual-dtor \
 			-D_USC_DTMF_TD -DLINUX32 \
 			-D_USE_VALGRIND_TO_CHECK_MEM_LEAK \
 			$(INCLUDE)
+
+# CPPFLAGS=-g $(DEBUGMEM) -Wall -Wno-literal-suffix -Wno-sign-compare \
+# 			-O2 \
+# 			-std=c++11 \
+# 			-Wno-non-virtual-dtor \
+# 			-D_USC_DTMF_TD -DLINUX32 \
+# 			-D_USE_VALGRIND_TO_CHECK_MEM_LEAK \
+# 			$(INCLUDE)
 		
 CC=g++
 
-out: ${3rd} ${OBJ}
+
+
+out: 3rd ${OBJS}
 	@echo make completed.
 
-${OUT_LIB}:${OBJ}
-	ar cru $@ ${OBJ}
+${OUT_LIB}:${OBJS}
+	ar cru $@ ${OBJS}
 	ranlib $@
 
 # $(OUT): $(SOURCE:.cpp=.o)
@@ -54,14 +71,18 @@ ${OUT_LIB}:${OBJ}
 
 # include $(SOURCE:.cpp=.d)
 
-%.d: %.cpp
-	set -e; rm -f $@; \
-	$(CC) $< -MM $(CPPFLAGS) > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
-	rm -f $@.$$$$
+%.o: %.cpp
+	$(CC) -c $(CPPFLAGS) $< -o $@
+
+# %.d: %.cpp
+# 	echo "-------------------"
+# 	set -e; rm -f $@; \
+# 	$(CC) $< -MM $(CPPFLAGS) > $@.$$$$; \
+# 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+# 	rm -f $@.$$$$
 
 .PHONY: test
-test: ${OUT_LIB}
+test: 3rd ${OUT_LIB}
 	make -C test
 
 .PHONY: 3rd

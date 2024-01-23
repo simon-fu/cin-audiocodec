@@ -1,20 +1,35 @@
 ## Prepare 3rd and PCM files
-3rd 和 测试PCM文件 打包放在github，下载时可能需要代理，在脚本里搜 get_3rd get_pcm 可找到下载链接。
+3rd 和 测试PCM文件 打包放在github，下载时可能需要代理，在脚本里搜 get_3rd get_pcm 可找到下载链接。如果本地已经存文件则不会执行下载过程。
 ```shell
-./build.sh setup 
+./build.sh prepare 
+``` 
+
+查看帮助
+```shell
+./build.sh help 
+```
+
+## Dependencies
+spandsp 依赖 libtiff。CentOS上安装 libtiff-devel
+```shell
+sudo yum install libtiff-devel
 ``` 
 
 ## Build Library
 ```shell
-make -C audiocodec 3rd && make -C audiocodec 
+make -C audiocodec 
 ``` 
 ## Build and Test
 ```shell
-make -C audiocodec 3rd && make -C audiocodec test && ./audiocodec/test/audiocodectest
+make -C audiocodec test
 ``` 
+## Clean Build
+```shell
+make -C audiocodec clean
+```
 
-## Clean 
-删除 3rd目录， pcm文件目录，和一些中间文件
+## Clean All
+删除 3rd目录 和 编译生成文件
 ```shell
 ./build.sh clean 
 ``` 
@@ -98,3 +113,5 @@ ln -s ITU-T_pesq-simon-dev ITU-T_pesq
 
 ## TODO
 - CAudioTranscoder::push 要缓存输入数据（如果decoder没有消费完）
+- make -C audiocodec 自动编译 3rd
+- 去除MacOS编译警告

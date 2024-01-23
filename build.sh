@@ -94,7 +94,7 @@ function unpack() {
 
 function reset() {
     fail2die clean
-    fail2die setup
+    fail2die prepare
 }
 
 function download() {
@@ -123,7 +123,7 @@ function auto_get () {
     fail2die $unpack_func
 }
 
-function setup () {
+function prepare () {
     auto_get get_3rd $THIZ_3RD_DIR $THIZ_3RD_GZFILE unpack_3rd
     auto_get get_pcm $THIZ_PCM_DIR $THIZ_PCM_GZFILE unpack_pcm
 
@@ -143,11 +143,11 @@ function help() {
     echo "  $0 <cmd>"
     echo "  "
     echo "  commands: "
-    echo "    setup     auto download and unpack"
-    # echo "    download  download 3rd and pcm file"
-    echo "    clean     delete directories"
-    # echo "    unpack    unpack/unzip files"
-    echo "    reset     clean and unpack"
+    echo "    prepare       auto download and unpack if files NOT exist"
+    # echo "    download    download 3rd and pcm file"
+    echo "    clean         delete directories and intermediate files"
+    # echo "    unpack      unpack/unzip files"
+    echo "    reset         clean and unpack"
 }
 
 

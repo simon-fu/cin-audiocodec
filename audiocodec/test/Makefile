@@ -47,18 +47,38 @@ INCLUDE=-I . -I .. \
 	-I $(THIRD_DIR)/speexdsp-1.2.1/include/speex \
 	-I $(THIRD_DIR)/ITU-T_pesq/source 
 
-CPPFLAGS=-g $(DEBUGMEM) -Wall -Wno-literal-suffix -Wno-sign-compare \
+
+CPPFLAGS=-g $(DEBUGMEM) -Wall
+
+ifeq ($(shell uname),Darwin)
+    CPPFLAGS += -Wno-reserved-user-defined-literal
+else
+    CPPFLAGS += -Wno-literal-suffix
+endif
+
+CPPFLAGS += -Wno-sign-compare \
 			-O2 \
 			-std=c++11 \
 			-Wno-non-virtual-dtor \
 			-D_USC_DTMF_TD -DLINUX32 \
 			-D_USE_VALGRIND_TO_CHECK_MEM_LEAK \
-			$(INCLUDE) $(LIBS)
+			$(INCLUDE)
+
+CPPFLAGS += $(LIBS)
+
+# CPPFLAGS=-g $(DEBUGMEM) -Wall -Wno-literal-suffix -Wno-sign-compare \
+# 			-O2 \
+# 			-std=c++11 \
+# 			-Wno-non-virtual-dtor \
+# 			-D_USC_DTMF_TD -DLINUX32 \
+# 			-D_USE_VALGRIND_TO_CHECK_MEM_LEAK \
+# 			$(INCLUDE) $(LIBS)
 
 
 
 out:audiocodectest
 	@echo make test completed.
+	./audiocodectest
 
 audiocodectest: audiocodectest.cpp $(DependLibs)
 	$(CC) -o $@ audiocodectest.cpp $(CPPFLAGS)
