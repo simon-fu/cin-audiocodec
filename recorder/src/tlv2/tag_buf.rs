@@ -4,8 +4,9 @@
 use bytes::{BufMut, Buf};
 use chrono::Local;
 
-use super::varint::MAX_VARINT32_ENCODED_LEN;
-use super::varint::encode::encode_varint32_size;
+use super::varint::zigzag::encode_zig_zag_64;
+use super::varint::{MAX_VARINT32_ENCODED_LEN, MAX_VARINT_ENCODED_LEN};
+use super::varint::encode::{encode_varint32_size, encode_varint64_size};
 
 use super::seg_buf::{AllocSeg, SegBuf, Cursor, SegList};
 use super::Type;
@@ -92,6 +93,10 @@ pub trait ValueAppender: AsBufMut {
     // fn append_len_value<V: AsBuf>(self, v: &V) -> Self ;
     fn append_len_value<V: IntoAsBuf>(self, v: V) -> Self ;
 
+    fn append_var_u64(self, v: u64) -> Self ;
+
+    fn append_var_i64(self, v: i64) -> Self ;
+
     fn append_last<V: IntoAsBuf>(self, v: V)  ;
     
     fn finish(self) ;
@@ -143,6 +148,14 @@ impl<C: GetTagBuf> ValueAppender for MultiTag<C> {
 
     fn append_len_value<V: IntoAsBuf>(self, v: V) -> Self { 
         MultiTag(self.0.append_len_value(v))
+    }
+
+    fn append_var_u64(self, v: u64) -> Self  {
+        MultiTag(self.0.append_var_u64(v))
+    }
+
+    fn append_var_i64(self, v: i64) -> Self {
+        MultiTag(self.0.append_var_i64(v))
     }
 
     fn append_last<V: IntoAsBuf>(self, v: V) {
@@ -298,6 +311,18 @@ impl<C: GetTagBuf> ValueAppender for SingleTag<C> {
         self.write(Buf2(&bytes1[..len1], v));
 
         self
+    }
+
+    fn append_var_u64(mut self, v: u64) -> Self  {
+        let mut bytes1 = [0; MAX_VARINT_ENCODED_LEN];
+        let len1 = encode_varint64_size(v, &mut bytes1);
+        self.write(&bytes1[..len1]);
+        self
+    }
+
+    fn append_var_i64(self, v: i64) -> Self {
+        let v = encode_zig_zag_64(v);
+        self.append_var_u64(v)
     }
 
     fn append_last<V: IntoAsBuf>(self, v: V) {

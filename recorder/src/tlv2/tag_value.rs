@@ -5,8 +5,9 @@ use bytes::Buf;
 
 
 use super::tag_buf::MAX_SEG_LEN;
-use super::varint::decode::decode_varint32;
+use super::varint::decode::{decode_varint32, decode_varint64};
 
+use super::varint::zigzag::decode_zig_zag_64;
 use super::{Type, Header};
 
 
@@ -121,6 +122,21 @@ impl<'a> ValueRef<'a> {
     pub fn cut_u16(&mut self) -> Result<u16> {
         let mut cut = self.cut_slice_origin(2, "cut_u16")?;
         Ok(cut.get_u16())
+    }
+
+    pub fn cut_var_u64(&mut self) -> Result<u64> { 
+        let data = &self.data[..];
+        let (v, comsumed) = decode_varint64(data)
+            .map_err(|_e| anyhow::anyhow!("invalid varint64"))?
+            .with_context(|| "NOT enough data for varint64")?;
+        self.data = &data[comsumed..];
+        Ok(v)
+    }
+
+    pub fn cut_var_i64(&mut self) -> Result<i64> { 
+        let v = self.cut_var_u64()?;
+        let v = decode_zig_zag_64(v);
+        Ok(v)
     }
 
     pub fn cut_slice(&mut self, n: usize) -> Result<&'a [u8]> {

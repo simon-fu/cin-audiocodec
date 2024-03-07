@@ -9,6 +9,7 @@ impl Type {
     pub const MAGIC: Type = Type(1);
     pub const ATTACH_BEGIN: Type = Type(2);
     pub const ATTACH_END: Type = Type(3);
+    pub const FILE_END: Type = Type(4);
 
     pub const BUILD_IN_START: Type = Self::DEBUG;
     pub const DEBUG: Type = Type(4);
