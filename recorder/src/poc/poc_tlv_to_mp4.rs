@@ -18,14 +18,14 @@ fn test_tlv_file_to_mp4() {
     let odir = "/tmp";
     let oname_prefix = "ostream_";
 
-    tlv_file_to_mp4(ipath.as_ref(), odir.as_ref(), oname_prefix.as_ref()).unwrap();
+    tlv_file_to_mp4(ipath.as_ref(), odir.as_ref(), oname_prefix.as_ref());
 }
 
-pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<()> {
-    let file_info = parse_tlv_file(ipath, &mut ())?;
+pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str)  {
+    let file_info = parse_tlv_file(ipath, &mut ()).unwrap();
 
     let mut conver = Converter {
-        // max_packets: Some(64),
+        max_packets: Some(64),
         ..Default::default()
     } ;
 
@@ -35,7 +35,7 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
         
         let opath = odir.join(format!("{oname_prefix}{}.mp4", stream.index));
         
-        let mut output = FFOutput::open(&opath.as_path())?;
+        let mut output = FFOutput::open(&opath.as_path()).unwrap();
         println!("opened output [{opath:?}]");
         output_paths.push(opath);
 
@@ -55,7 +55,7 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
                         .get(0)
                         .map(|x|x.as_str()).unwrap_or("");
 
-                        let param = RtpH264Parameters::parse_from_str(fmtp).map_err(|e|anyhow!("{e}"))?;
+                        let param = RtpH264Parameters::parse_from_str(fmtp).map_err(|e|anyhow!("{e}")).unwrap();
 
                         let mut spspps = BytesMut::new();
                         if param.sps_nal.len() > 0 {
@@ -72,13 +72,11 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
                             param.generic.pixel_dimensions.0 as i32, 
                             param.generic.pixel_dimensions.1 as i32, 
                             &spspps[..],
-                        )?.index();
+                        ).unwrap().index();
                         println!("add h264 track, spspps {}", spspps.len());
 
                         
-                        depackers.push(Some( RtpDepackerH264::new(Some(fmtp))?.into_box() ));
-                        // depackers.push(Some(Box::new(RetinaDepackH264::new(Some(fmtp))?)));
-                        // depackers.push(Some(Box::new(RtpDepackerH264::default())));
+                        depackers.push(Some( RtpDepackerH264::new(Some(fmtp)).unwrap().into_box() ));
                         
                         
                         CFlow {
@@ -89,21 +87,19 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
                         let otrack_index = output.add_aac_track(
                             flow.codec.clock_rate as i32, 
                             flow.codec.channels.unwrap_or(1) as i32,
-                        )?.index();
+                        ).unwrap().index();
                         
                         let fmtp = flow.codec.fmtps
                         .get(0)
                         .map(|x|x.as_str());
 
                         println!("add aac track");
-
-                        // depackers.push(Some(Box::new(RtpDepackerAudio::default())));
                         
                         depackers.push(Some(RtpDepackerAAC::new (
                             flow.codec.clock_rate,
                             flow.codec.channels.map(|x| std::num::NonZeroU16::new(x as u16)).unwrap_or(None),
                             fmtp,
-                        )?.into_box() ));
+                        ).unwrap().into_box() ));
                         
 
                         CFlow {
@@ -122,25 +118,31 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
         }
 
         
-
-        let writer = output.begin_write()?;
+        let stream_index = conver.streams.len();
+        let writer = output.begin_write().unwrap();
         for (index, item) in writer.tracks_iter().enumerate() {
             if let Some(depacker) = depackers[index].take() {
-                conver.otracks.push(OTrack {
+                let otrack = OTrack {
+                    name: format!("stream_{stream_index}_track_{index}_item_{}", item.index),
                     track: item,
                     depacker,
                     wrote_packets: 0,
-                });
+                };
+
+                println!("add otrack [{}]", otrack.name);
+
+                conver.otracks.push(otrack);
             }
         }
 
         conver.streams.push(CStream {
             writer,
             tracks: ctracks,
+            first_ts: None,
         });
     }
 
-    parse_tlv_file(ipath, &mut conver)?;
+    parse_tlv_file(ipath, &mut conver).unwrap();
 
     for (index, path) in output_paths.iter().enumerate() {
         println!("output[{index}]=[{path:?}]");
@@ -148,7 +150,7 @@ pub fn tlv_file_to_mp4(ipath: &Path, odir: &Path, oname_prefix: &str) -> Result<
 
     println!("total wrote packets {}", conver.num_packets);
 
-    Ok(())
+    // Ok(())
 }
 
 #[derive(Default)]
@@ -193,30 +195,39 @@ impl Handler for Converter {
     
     fn on_flow_rtp(&mut self, mut ctx: ContextMut<'_, Self>, flow: &mut FlowMut<Self::Flow>, packet: &ChPacket) -> Result<()> {
         let ext = flow.ext_mut();
-        if let Some(index) = ext.otrack_index {
+        if let Some(otrack_index) = ext.otrack_index {
             // println!("on_flow_rtp: track {index}");
 
+            let stream_index = flow.index().track.stream;
 
-            let r1 = self.otracks.get_mut(index);
-            let r2 = self.streams.get_mut(flow.index().track.stream);
+            let r1 = self.otracks.get_mut(otrack_index);
+            let r2 = self.streams.get_mut(stream_index);
             if let (Some(otrack), Some(stream)) = (r1, r2) {
+                println!("on_flow_rtp: otrack.name [{}]", otrack.name);
 
-                otrack.depacker.push_rtp_slice(&packet.data)?;
-                while let Some(frame) = otrack.depacker.pull_frame()? {
+                otrack.depacker.push_rtp_slice(&packet.data).unwrap();
+                while let Some(frame) = otrack.depacker.pull_frame().unwrap() {
                     let mut ffpacket = ff::Packet::copy(&frame[..]);
                     
                     // let src_time_base = ff::Rational::new(1, 30);
                     // let pts = otrack.wrote_packets as i64;
                     
+                    let pts = match stream.first_ts {
+                        Some(first) => packet.ts - first,
+                        None => {
+                            stream.first_ts = Some(packet.ts);
+                            0
+                        },
+                    };
+
                     let src_time_base = ff::Rational::new(1, 1000);
-                    let pts = packet.ts;
-                    // println!("wrote pakcet, track {index}, pts {pts}, {}", pretty_hex::simple_hex(&&frame[..4]));
+
+                    println!("wrote pakcet, stream {stream_index}, track {otrack_index}, pts {pts}, {}", pretty_hex::simple_hex(&&frame[..4]));
 
                     ffpacket.set_pts(Some(pts));
                     // ffpacket.set_dts(Some(packet.ts));
                     
-
-                    stream.writer.write_packet(&otrack.track, src_time_base, &mut ffpacket)?;
+                    stream.writer.write_packet(&otrack.track, src_time_base, &mut ffpacket).unwrap();
                     otrack.wrote_packets += 1;
                 }
             }
@@ -242,6 +253,7 @@ impl Handler for Converter {
 
 
 struct OTrack {
+    name: String,
     track: FFTrack,
     depacker: Box<dyn RtpCodecDepacker>,
     wrote_packets: u64,
@@ -252,6 +264,7 @@ struct OTrack {
 struct CStream {
     writer: FFWriter,
     tracks: Vec<CTrack>,
+    first_ts: Option<i64>,
 }
 
 struct CTrack {

@@ -1,5 +1,5 @@
 use std::{collections::HashMap, fmt, marker::PhantomData, path::Path};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use rtp_rs::RtpReader;
@@ -368,7 +368,11 @@ pub fn parse_tlv_file<H: Handler>(ipath: &Path, handler: &mut H) -> Result<FileI
                         if let Some(stream_index) = parser.stream_indexes.get_mut(&packet.ch_id) {
                             if let Some(stream) = parser.streams.get_mut(stream_index.index) {
                                 stream.handle_ch_data(packet, &mut handler)?;
+                            } else {
+                                dbgd!("NOT found stream_index {}", stream_index.index);
                             }
+                        } else {
+                            dbgd!("NOT found ch_id {}", packet.ch_id);
                         }
 
                         // break;
@@ -480,13 +484,11 @@ impl<H: Handler> ParserStream<H> {
     pub fn handle_ch_data(&mut self, ch_data: ChPacket, handler: &mut HandlerMut<'_, H>) -> Result<()> 
     {
         
-        // if ch_data.ch_id % 2 != 0 {
-        //     // TODO: 应该通过解析数据包来判断是否rtcp数据
-        //     // ignore rtcp
-        //     return Ok(())
-        // }
-        
-        let track_index = (ch_data.ch_id >> 1) as usize;
+        if ch_data.ch_id < self.start_ch_id() {
+            bail!("expect start_ch_id {} but {}", self.start_ch_id(), ch_data.ch_id)
+        }
+        let ch_id = ch_data.ch_id - self.start_ch_id();
+        let track_index = (ch_id >> 1) as usize;
         
         if let Some(track) = self.tracks.get_mut(track_index) {
             if check_is_rtcp(&ch_data.data) {

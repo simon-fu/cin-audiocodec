@@ -203,21 +203,30 @@ pub struct RtpMemCursor {
 pub struct RtpMemPacket {
     pts: i64,
     dts: i64,
-    ch_id: u8,
+    ch_id: u64,
     data: Bytes,
 }
 
 impl RtpMemPacket {
 
+    pub fn set_ts(&mut self, pts: i64, dts: i64) {
+        self.pts = pts;
+        self.dts = dts;
+    }
+
     pub fn pts(&self) -> i64 {
         self.pts
+    }
+
+    pub fn set_ch_id(&mut self, ch_id: u64) {
+        self.ch_id = ch_id;
     }
 
     pub fn dts(&self) -> i64 {
         self.dts
     }
 
-    pub fn ch_id(&self) -> u8 {
+    pub fn ch_id(&self) -> u64 {
         self.ch_id
     }
 
@@ -225,7 +234,7 @@ impl RtpMemPacket {
         &self.data
     }
     
-    fn from_rtp_buf(buf: RtpBuf, ch_id: u8, pts: i64, dts: i64) -> Self {
+    fn from_rtp_buf(buf: RtpBuf, ch_id: u64, pts: i64, dts: i64) -> Self {
         // let ch_id = (index << 1) as u8;
 
         match buf {
@@ -271,11 +280,11 @@ impl TsBase {
     }
 }
 
-fn load_track(reader: &mut Reader, index: usize, ch_id: u8, max_frames: u64) -> Result<MemTrack> {
+fn load_track(reader: &mut Reader, index: usize, ch_id: u64, max_frames: u64) -> Result<MemTrack> {
     load_track1(reader, index, ch_id, max_frames)
 }
 
-fn load_track1(reader: &mut Reader, index: usize, ch_id: u8, max_frames: u64) -> Result<MemTrack> {
+fn load_track1(reader: &mut Reader, index: usize, ch_id: u64, max_frames: u64) -> Result<MemTrack> {
 
     // let val = reader
     // .input
@@ -306,7 +315,7 @@ fn load_track1(reader: &mut Reader, index: usize, ch_id: u8, max_frames: u64) ->
         let mut pts_gen = TsGen::new(40);
         let mut dts_gen = TsGen::new(40);
 
-        for num in 0..max_frames {
+        for _num in 0..max_frames {
             let frame = match reader.read(index){
                 Ok(v) => v,
                 Err(_e) => break,
@@ -316,7 +325,7 @@ fn load_track1(reader: &mut Reader, index: usize, ch_id: u8, max_frames: u64) ->
 
             // let pts = Duration::from(frame.pts()).as_millis() as i64;
             // let dts = Duration::from(frame.dts()).as_millis() as i64;
-            println!("ch[{ch_id}] frame {num}: pts {}, dts {}", pts, dts);
+            // println!("rtpmem: ch[{ch_id}] frame {_num}: pts {}, dts {}", pts, dts);
             let rtp_packets = muxer.mux(frame)?;
             packets.extend(rtp_packets.into_iter().map(|buf| {
                 if let RtpBuf::Rtp(d) = &buf {
@@ -325,7 +334,7 @@ fn load_track1(reader: &mut Reader, index: usize, ch_id: u8, max_frames: u64) ->
                 RtpMemPacket::from_rtp_buf(buf, ch_id, pts, dts)
             }));
         }
-        println!("ch[{ch_id}] rtp packets {}", packets.len());
+        // println!("rtpmem: ch[{ch_id}] rtp packets {}", packets.len());
         packets
     };
 
@@ -457,7 +466,7 @@ type PpsBytes = VecBytes;
 
 
 pub struct MemTrack {
-    ch_id: u8,
+    ch_id: u64,
     _payload_type: u8,
     _info: StreamInfo,
     control: String,

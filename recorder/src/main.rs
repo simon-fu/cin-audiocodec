@@ -17,5 +17,7 @@ pub mod rtp;
 
 pub mod media;
 
+pub mod mix_video;
+
 #[cfg(test)]
 mod poc;
