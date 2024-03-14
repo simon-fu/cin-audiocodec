@@ -1,9 +1,9 @@
 
 
-use std::collections::HashMap;
+
 use ffmpeg_next as ff;
-use crate::ffeasy::video::{image::FFYuvImage, VideoSize};
-use super::{layout_grids::LayoutGrids, LayoutOp, VChFlags, VChId, VChannel};
+use crate::ffeasy::video::{image::FFYuvImage, scaler::FFAutoScaler, VideoSize};
+use super::{layout_big_left::LayoutBigLeft, layout_dynamic::LayoutDynamic, layout_grids::LayoutGrids, LayoutOp, VChFlags, VChId, VChannel, VChannels};
 
 
 type Result<T> = std::result::Result<T, ff::Error>;
@@ -11,15 +11,17 @@ type Result<T> = std::result::Result<T, ff::Error>;
 pub struct VideoMixer {
     layout: Box<dyn LayoutOp>,
     next_id: u64,
-    channels: HashMap<VChId, VChannel>,
+    channels: VChannels,
+    image: FFYuvImage,
 }
 
 impl VideoMixer {
     pub fn new(size: VideoSize) -> Result<Self> {
         Ok(Self {
-            layout: Box::new(LayoutGrids::new(size)),
+            layout: Box::new(LayoutDynamic::default()),
             next_id: 0,
             channels: Default::default(),
+            image: FFYuvImage::new(size),
         })
     }
 
@@ -32,32 +34,34 @@ impl VideoMixer {
         self.next_id += 1;
         let ch_id = VChId(self.next_id);
 
-        self.layout.add_ch(ch_id, flags)?;
+        // self.layout.add_ch(ch_id, flags)?;
 
         self.channels.insert(ch_id, VChannel {
             image: None,
             flags,
+            scaler: FFAutoScaler::new(FFYuvImage::FORMAT, self.image.size())?,
         });
         
         Ok(ch_id)
     }
 
     pub fn remove_ch(&mut self, ch_id: &VChId) -> Result<()> {
-        self.layout.remove_ch(ch_id)?;
+        // self.layout.remove_ch(ch_id)?;
         self.channels.remove(ch_id);
         Ok(())
     }
 
     pub fn update_ch(&mut self, ch_id: &VChId, image: FFYuvImage) -> Result<()> {
         if let Some(ch) = self.channels.get_mut(ch_id) {
-            self.layout.update_ch(ch_id, &image)?;
+            // self.layout.update_ch(ch_id, &image)?;
             ch.image = Some(image);
         }
         Ok(())
     }
 
     pub fn get_output(&mut self) -> Result<&FFYuvImage> {
-        self.layout.get_output(&self.channels)
+        self.layout.get_output(&mut self.channels, &mut self.image)?;
+        Ok(&self.image)
     }
 }
 
@@ -77,6 +81,7 @@ fn test_mp4_to_yuv() {
     let output_path_base = "/tmp/output";
     let max_frames = Some(160);
     let pixel = ff::util::format::Pixel::YUV420P;
+    // let format: ffmpeg_sys_next::AVPixelFormat = pixel.into();
     let dst_w = 1280;
     let dst_h = 720;
 

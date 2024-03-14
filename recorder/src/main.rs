@@ -19,5 +19,9 @@ pub mod media;
 
 pub mod mix_video;
 
+pub mod mix_audio;
+
+pub mod rwbuf;
+
 #[cfg(test)]
 mod poc;

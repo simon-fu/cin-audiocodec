@@ -31,6 +31,35 @@ pub fn set_decoder_context_time_base(decoder_context: &mut ff::codec::Context, t
     }
 }
 
+pub fn audio_frame_packed_i16_samples(frame: &ff::frame::Audio) -> &[i16] {
+    let len = frame.samples() * 2 * frame.channels() as usize;
+    let data = &frame.data(0)[..len];
+    slice_u8_to_i16(data)
+}
+
+pub fn audio_frame_packed_i16_samples_mut(frame: &mut ff::frame::Audio) -> &mut [i16] {
+    let len = frame.samples() * 2 * frame.channels() as usize;
+    let data = &mut frame.data_mut(0)[..len];
+    slice_u8_to_i16_mut(data)
+}
+
+pub fn audio_packed_i16_to_bytes(samples: &[i16]) -> &[u8] {
+    unsafe { 
+        std::slice::from_raw_parts(samples.as_ptr() as *const u8, samples.len() * 2) 
+    }
+}
+
+fn slice_u8_to_i16(data: &[u8]) -> &[i16] {
+    unsafe { 
+        std::slice::from_raw_parts(data.as_ptr() as *const i16, data.len()/2) 
+    }
+}
+
+fn slice_u8_to_i16_mut(data: &mut [u8]) -> &mut [i16] {
+    unsafe { 
+        std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut i16, data.len()/2) 
+    }
+}
 
 
 // pub fn rtp_h264_mode_0(output: &ff::format::Output) -> bool {

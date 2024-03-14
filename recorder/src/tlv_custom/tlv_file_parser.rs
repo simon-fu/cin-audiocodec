@@ -146,12 +146,16 @@ impl fmt::Debug for FlowIndex {
 pub struct FlowMut<'a, T>(&'a mut ParserFlow<T>);
 
 impl<'a, T> FlowMut<'a, T> {
+    pub fn flow(&self) -> &Flow {
+        &self.0.flow
+    }
+
     pub fn codec(&self) -> &SdpCodec {
-        &self.0.codec
+        &self.0.flow.codec
     }
 
     pub fn index(&self) -> &FlowIndex {
-        &self.0.index
+        &self.0.flow.index
     }
 
     pub fn ext_mut(&mut self) -> &mut T {
@@ -252,6 +256,7 @@ pub struct Track {
 
 #[derive(Debug, Clone)]
 pub struct Flow {
+    pub index: FlowIndex,
     pub codec: SdpCodec,
 }
 
@@ -525,8 +530,10 @@ impl<H: Handler> ParserStream<H> {
                                 )?;
 
                                 let mut flow = ParserFlow {
-                                    index: flow_index,
-                                    codec: codec.clone(),
+                                    flow: Flow {
+                                        index: flow_index,
+                                        codec: codec.clone(),
+                                    },
                                     ext,
                                 };
 
@@ -549,8 +556,10 @@ impl<H: Handler> ParserStream<H> {
                                 )?;
 
                                 let mut flow = ParserFlow {
-                                    index: flow_index,
-                                    codec: codec.clone(),
+                                    flow: Flow {
+                                        index: flow_index,
+                                        codec: codec.clone(),
+                                    },
                                     ext,
                                 };
 
@@ -600,16 +609,13 @@ impl <H: Handler> From<ParserTrack<H>> for Track {
 // }
 
 struct ParserFlow<T> {
-    index: FlowIndex,
-    codec: SdpCodec,
+    flow: Flow,
     ext: T,
 }
 
 impl <T> From<ParserFlow<T>> for Flow {
     fn from(from: ParserFlow<T>) -> Self {
-        Self {
-            codec: from.codec,
-        }
+        from.flow
     }
 }
 

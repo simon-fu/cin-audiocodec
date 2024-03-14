@@ -59,10 +59,20 @@ impl SdpMedia {
     }
 }
 
+// #[derive(Debug, Clone)]
+// pub enum SdpCodecType {
+//     Video,
+//     Audio,
+//     Unknown,
+// }
+
+pub type SdpMediaType = sdp_rs::lines::media::MediaType;
+
 #[derive(Debug, Clone)]
 pub struct SdpCodec {
     pub payload_type: u8,
     pub codec_id: SdpCodecId,
+    pub media_type: SdpMediaType,
     pub clock_rate: u32,
     pub channels: Option<u32>,
     pub rtcpfb: BitFlags<SdpRtcpfbFlags>,
@@ -134,6 +144,7 @@ fn parse_av(mdesc:&sdp_rs::MediaDescription, index: usize) -> Result<SdpAV> {
                 if let Some(codec_id) = CodecId::parse_from_str(&rtpmap.encoding_name) {
                     media.codecs.insert(rtpmap.payload_type as u8, SdpCodec {
                         payload_type: rtpmap.payload_type as u8,
+                        media_type: mdesc.media.media.clone(),
                         codec_id,
                         clock_rate: rtpmap.clock_rate as u32,
                         channels: rtpmap.encoding_params.map(|x| x as u32),

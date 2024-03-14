@@ -3,12 +3,11 @@ use ff::Rescale;
 use ffmpeg_next as ff;
 use std::path::Path;
 
-use crate::ffeasy::ffi::set_decoder_context_time_base;
+use crate::ffeasy::{ffi::set_decoder_context_time_base, parameters::FFParameters};
 
 pub struct InputVideoDecoder {
     ictx: ff::format::context::Input,
-    decoder: ff::codec::decoder::Video,
-    scaler: ff::software::scaling::Context,
+    ctx: DecoderContext,
     i_index: usize,
     decoder_time_base: ff::Rational,
 }
@@ -21,21 +20,50 @@ impl InputVideoDecoder {
         .best(ff::util::media::Type::Video)
         .ok_or_else(||ff::Error::StreamNotFound)?;
 
-        let i_params = i_track.parameters();
+        let i_params: FFParameters = i_track.parameters().into();
         let i_time_base = i_track.time_base();
         let i_index = i_track.index();
     
+        println!(
+            "input video codec1 {:?}, size {:?}, fps {:?}, extra {}, format {}",
+            i_params.get_codec(),
+            i_params.get_resolution(),
+            i_params.get_framerate(),
+            i_params.get_extra().len(),
+            i_params.get_format(),
+        );
+
+        // // let decoder_params = i_params;
+
+        // let mut decoder_params = FFParameters::new();
+        // decoder_params.set_codec(i_params.get_codec());
+        // decoder_params.set_resolution(i_params.get_resolution());
+        // // decoder_params.set_framerate(i_params.get_framerate());
+        // decoder_params.set_extra(i_params.get_extra());
+        // decoder_params.set_format(i_params.get_format());
+        // // println!(
+        // //     "input video codec2 {:?}, size {:?}, fps {:?}, extra {}, format {}",
+        // //     decoder_params.get_codec(),
+        // //     decoder_params.get_resolution(),
+        // //     decoder_params.get_framerate(),
+        // //     decoder_params.get_extra().len(),
+        // //     decoder_params.get_format(),
+        // // );
     
-        let mut decoder = ff::codec::Context::new();
-        set_decoder_context_time_base(&mut decoder, i_time_base);
-        decoder.set_parameters(i_params)?;
-        let decoder = decoder.decoder().video()?;
+        // let mut decoder = ff::codec::Context::new();
+        // set_decoder_context_time_base(&mut decoder, i_time_base);
+        // decoder.set_parameters(decoder_params)?;
+        // let decoder = decoder.decoder().video()?;
+
+        let codec = i_params.get_codec();
+        let res = i_params.get_resolution();
+        let decoder = make_video_decoder(codec.1.into(), res.0, res.1, i_params.get_extra(), i_time_base)?;
+
         let decoder_time_base = decoder.time_base();
-    
         let resize_width = decoder.width();
         let resize_height = decoder.height();
     
-        println!("decoder: fmt {:?}, w {}, h {}, wxh {}", decoder.format(), decoder.width(), decoder.height(), decoder.width() * decoder.height(),);
+        // println!("decoder: fmt {:?}, w {}, h {}, wxh {}", decoder.format(), decoder.width(), decoder.height(), decoder.width() * decoder.height(),);
         assert! (decoder.format() != ff::util::format::Pixel::None || decoder.width() > 0 || decoder.height() > 0);
     
         
@@ -51,8 +79,10 @@ impl InputVideoDecoder {
 
         Ok(Self {
             ictx,
-            decoder,
-            scaler,
+            ctx: DecoderContext {
+                decoder,
+                scaler,
+            },
             i_index,
             decoder_time_base,
         })
@@ -66,7 +96,7 @@ impl InputVideoDecoder {
 
     pub fn next_frame(&mut self) -> Result<Option<ff::util::frame::Video>, ff::Error> {
 
-        if let Some(frame) = self.pull_next_frame()? {
+        if let Some(frame) = self.ctx.pull_next_frame()? {
             return Ok(Some(frame))
         }
 
@@ -83,16 +113,27 @@ impl InputVideoDecoder {
             packet.set_pts(pts);
             packet.set_dts(dts);
     
-            self.decoder.send_packet(&packet)?;
+            self.ctx.decoder.send_packet(&packet)?;
             // num_packets += 1;
-            return self.pull_next_frame()
-            
+
+            let r = self.ctx.pull_next_frame()?;
+            if let Some(r) = r {
+                return Ok(Some(r))
+            }
         }
         Ok(None)
     }
 
+}
+
+struct DecoderContext {
+    decoder: ff::codec::decoder::Video,
+    scaler: ff::software::scaling::Context,
+}
+
+impl DecoderContext {
     fn pull_next_frame(&mut self) -> Result<Option<ff::util::frame::Video>, ff::Error> {
-        match decoder_receive_frame(&mut self.decoder)? {
+        match video_decoder_receive_frame(&mut self.decoder)? {
             Some(frame) => {
                 let frame = {
                     let mut frame_scaled = ff::util::frame::Video::empty();
@@ -119,7 +160,6 @@ impl InputVideoDecoder {
             None => Ok(None),
         }
     }
-
 }
 
 pub struct FrameIter<'a> {
@@ -134,7 +174,7 @@ impl<'a> Iterator for FrameIter<'a> {
     }
 }
 
-fn decoder_receive_frame(decoder: &mut ff::codec::decoder::Video) -> std::result::Result<Option<ff::util::frame::Video>, ff::util::error::Error> {
+pub fn video_decoder_receive_frame(decoder: &mut ff::codec::decoder::Video) -> std::result::Result<Option<ff::util::frame::Video>, ff::util::error::Error> {
     let mut frame = ff::util::frame::Video::empty();
     let decode_result = decoder.receive_frame(&mut frame);
     match decode_result {
@@ -143,3 +183,46 @@ fn decoder_receive_frame(decoder: &mut ff::codec::decoder::Video) -> std::result
         Err(err) => Err(err.into()),
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct FFVideoArgs {
+    pub codec_id: ff::codec::Id,
+    pub width: i32,
+    pub height: i32,
+    pub extra: bytes::Bytes,
+    pub time_base: ff::Rational,
+}
+
+
+pub fn make_video_decoder(
+    codec_id: ff::codec::Id,
+    width: i32,
+    height: i32,
+    extra: &[u8],
+    time_base: ff::Rational,
+) -> Result<ff::codec::decoder::Video, ff::Error> {
+
+    let mut decoder_params = FFParameters::new();
+    decoder_params.set_codec((ff::ffi::AVMediaType::AVMEDIA_TYPE_VIDEO, codec_id.into()));
+    decoder_params.set_resolution((width, height));
+    // decoder_params.set_framerate(i_params.get_framerate());
+    decoder_params.set_extra(extra);
+    decoder_params.set_video_format(ff::util::format::Pixel::YUV420P);
+
+    println!(
+        "input video codec2 {:?}, size {:?}, fps {:?}, extra {}, format {}",
+        decoder_params.get_codec(),
+        decoder_params.get_resolution(),
+        decoder_params.get_framerate(),
+        decoder_params.get_extra().len(),
+        decoder_params.get_format(),
+    );
+
+    let mut decoder = ff::codec::Context::new();
+    set_decoder_context_time_base(&mut decoder, time_base);
+    decoder.set_parameters(decoder_params)?;
+    let decoder = decoder.decoder().video()?;
+    Ok(decoder)
+}
+
+

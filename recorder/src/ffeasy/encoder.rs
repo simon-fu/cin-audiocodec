@@ -1,6 +1,7 @@
+use ff::ChannelLayout;
 use ffmpeg_next as ff;
 
-use super::ffi::ff_codec_context_as;
+use super::{ffi::ff_codec_context_as, parameters::FFParameters};
 
 pub struct FFVideoEncoder {
     encoder: ff::codec::encoder::video::Encoder,
@@ -50,6 +51,15 @@ impl FFVideoEncoder {
         Ok(Self { encoder, })
     }
 
+    pub fn send_frame(&mut self, frame: &ff::Frame) -> Result<(), ff::Error> {
+        self.encoder.send_frame(frame)
+    }
+
+    pub fn send_eof(&mut self) -> Result<(), ff::Error> {
+        self.encoder.send_eof()
+    }
+
+
     pub fn receive_packet(&mut self) -> Result<Option<ff::codec::packet::Packet>, ff::Error> {
         let mut packet = ff::codec::packet::Packet::empty();
         let encode_result = self.encoder.receive_packet(&mut packet);
@@ -83,22 +93,116 @@ impl FFVideoEncoder {
         &self.encoder
     }
 
-    pub fn inner_mut(&mut self) -> &mut ff::codec::encoder::video::Encoder {
-        &mut self.encoder
-    }
+    // pub fn inner_mut(&mut self) -> &mut ff::codec::encoder::video::Encoder {
+    //     &mut self.encoder
+    // }
 
     pub fn get_time_base(&self) -> ff::Rational {
         unsafe { (*self.encoder.0.as_ptr()).time_base.into() }
     }
 
-    pub fn get_parameters(&self) -> ff::codec::Parameters {
-        ff::codec::Parameters::from(&self.encoder)
+    pub fn get_parameters(&self) -> FFParameters {
+        ff::codec::Parameters::from(&self.encoder).into()
     }
 
 
 }
 
 
+pub struct FFAudioEncoder {
+    encoder: ff::codec::encoder::audio::Encoder,
+}
+
+impl FFAudioEncoder {
+    
+    pub fn aac(
+        samplerate: u32,
+        channels: u32,
+        format: ff::format::Sample,
+        global_header: bool,
+    ) -> Result<Self, ff::Error> {
+        
+        let codec = ff::encoder::find(ff::codec::Id::AAC);
+    
+        let mut encoder_context = match codec {
+            Some(codec) => ff_codec_context_as(&codec)?,
+            None => ff::codec::Context::new(),
+        };
+
+        if global_header {
+            encoder_context.set_flags(ff::codec::Flags::GLOBAL_HEADER);
+        }
+    
+        let mut encoder = encoder_context.encoder().audio()?;
+    
+        encoder.set_format(format);
+        encoder.set_rate(samplerate as i32);
+        encoder.set_channels(channels as i32);
+        encoder.set_channel_layout(ChannelLayout::default(channels as i32));
+
+        encoder.set_time_base(ff::util::mathematics::rescale::TIME_BASE);
+    
+        let opts = ff::Dictionary::new();
+        let encoder = encoder.open_with(opts.clone())?;
+        Ok(Self { encoder, })
+    }
+
+    pub fn send_frame(&mut self, frame: &ff::Frame) -> Result<(), ff::Error> {
+        self.encoder.send_frame(frame)
+    }
+
+    pub fn send_eof(&mut self) -> Result<(), ff::Error> {
+        self.encoder.send_eof()
+    }
+
+
+    pub fn receive_packet(&mut self) -> Result<Option<ff::codec::packet::Packet>, ff::Error> {
+        let mut packet = ff::codec::packet::Packet::empty();
+        let encode_result = self.encoder.receive_packet(&mut packet);
+        match encode_result {
+            Ok(()) => Result::<_, ff::Error>::Ok(Some(packet)),
+            Err(ff::Error::Other { errno }) if errno == ff::util::error::EAGAIN => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub fn flush_receive_packet(&mut self) -> Result<Option<ff::codec::packet::Packet>, ff::Error> {
+        let r = self.receive_packet();
+        match r {
+            Ok(r) => {
+                Ok(r)
+            },
+            Err(ff::Error::Eof) => {
+                Ok(None)
+            }
+            Err(e) => {
+                Err(e)
+            },
+        }
+    }
+
+    pub fn into_inner(self) -> ff::codec::encoder::audio::Encoder {
+        self.encoder
+    }
+
+    pub fn inner(&self) -> &ff::codec::encoder::audio::Encoder {
+        &self.encoder
+    }
+
+    // pub fn inner_mut(&mut self) -> &mut ff::codec::encoder::video::Encoder {
+    //     &mut self.encoder
+    // }
+
+    pub fn get_time_base(&self) -> ff::Rational {
+        unsafe { (*self.encoder.0.as_ptr()).time_base.into() }
+    }
+
+    pub fn get_parameters(&self) -> FFParameters {
+        ff::codec::Parameters::from(&self.encoder).into()
+    }
+
+
+}
 
 
 

@@ -43,7 +43,7 @@ impl FFOutput {
         samplerate: i32,
         channels: i32,
     ) -> Result<ff::format::stream::StreamMut<'a> , ff::Error> {
-        self.add_audio_track(ff::codec::Id::AAC, samplerate, channels)
+        self.add_audio_track(ff::codec::Id::AAC, samplerate, channels, Some(1024))
     }
 
     pub fn add_audio_track<'a>(
@@ -51,9 +51,15 @@ impl FFOutput {
         codec_id: ff::codec::Id,
         samplerate: i32,
         channels: i32,
+        frame_size: Option<i32>,
     ) -> Result<ff::format::stream::StreamMut<'a> , ff::Error> {
         let mut o_param = FFParameters::new();
         o_param.set_audio(codec_id.into(), samplerate, channels);
+
+        if let Some(frame_size) = frame_size {
+            o_param.set_frame_size(frame_size);
+        }
+
         let codec = ff::encoder::find(codec_id);
         self.add_track(codec, o_param.into())
     }
@@ -80,7 +86,7 @@ impl FFOutput {
         codec_id: ff::codec::Id,
         width: i32,
         height: i32,
-        spspps: &[u8],
+        extra: &[u8],
         // fps_time_base: ff::Rational,
     ) -> Result<ff::format::stream::StreamMut<'a> , ff::Error> {
 
@@ -90,7 +96,7 @@ impl FFOutput {
             codec_id.into(), 
             width, 
             height, 
-            spspps,
+            extra,
         );
         
         // o_param.set_framerate(fps_time_base.into());
@@ -165,7 +171,7 @@ impl FFWriter {
         Ok(())
     }
 
-    // fn inner(&self) -> &ff::format::context::output::Output {
+    // pub fn inner(&self) -> &ff::format::context::output::Output {
     //     &self.output
     // }
 
@@ -181,7 +187,7 @@ impl Drop for FFWriter {
 }
 
 
-fn rescal_ts(packet: &mut ff::Packet, source: ff::Rational, destination: ff::Rational) {
+pub fn rescal_packet_ts(packet: &mut ff::Packet, source: ff::Rational, destination: ff::Rational) {
     let pts = packet.pts().map(|ts| ts.rescale(source, destination));
     packet.set_pts(pts);
 
@@ -204,7 +210,7 @@ impl FFTrack {
         packet.set_stream(self.index);
         packet.set_position(-1);
 
-        rescal_ts(packet, src_time_base, self.time_base);
+        rescal_packet_ts(packet, src_time_base, self.time_base);
 
         // packet.rescale_ts(src_time_base, track.time_base);
     }

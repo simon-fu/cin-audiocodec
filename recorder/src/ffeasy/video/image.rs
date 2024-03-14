@@ -5,7 +5,7 @@ use super::{Point, VideoSize, YuvColor};
 
 
 
-
+#[derive(Clone)]
 pub struct FFYuvImage {
     // size: Size,
     pub(super) frame: ff::util::frame::Video,
@@ -37,6 +37,10 @@ impl FFYuvImage {
 
     pub fn frame(&self) -> &ff::util::frame::Video {
         &self.frame
+    }
+
+    pub fn frame_mut(&mut self) -> &mut ff::util::frame::Video {
+        &mut self.frame
     }
     
     // pub fn bk_pixel(&self) -> &YuvColor {

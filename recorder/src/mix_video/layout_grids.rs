@@ -1,139 +1,174 @@
 
 
 use ffmpeg_next as ff;
-use crate::ffeasy::video::{image::FFYuvImage, scaler::FFAutoScaler, Point, VideoSize, YuvColor};
+use crate::ffeasy::video::{image::FFYuvImage, scale_fit, Point, VideoSize, YuvColor};
 
-use super::{LayoutOp, VChFlags, VChId, VChannels};
+use super::{LayoutOp, VChannels};
 
 type Result<T> = std::result::Result<T, ff::Error>;
 
+#[derive(Default)]
 pub struct LayoutGrids {
-    size: VideoSize,
-    unit: VideoSize,
-    grids: Vec<Grid>,
-    image: FFYuvImage,
+    // size: VideoSize,
+    // unit: VideoSize,
+    // grids: Vec<Grid>,
+    // // image: FFYuvImage,
 }
 
 impl LayoutGrids {
-    pub fn new(size: VideoSize) -> Self {
-        Self {
-            size,
-            unit: size,
-            grids: Default::default(),
-            image: FFYuvImage::new(size),
-        }
-    }
+    // pub fn new(_size: VideoSize) -> Self {
+    //     Self {
+    //         // size,
+    //         // unit: size,
+    //         // grids: Default::default(),
+    //         // // image: FFYuvImage::new(size),
+    //     }
+    // }
 
-    pub fn grow_grids(&mut self, extra: usize) -> Result<()> {
+    // pub fn grow_grids(&mut self, extra: usize) -> Result<()> {
         
-        let (rows, cols) = calc_rows_cols((self.grids.len() + extra) as u32);
+    //     let (rows, cols) = calc_rows_cols((self.grids.len() + extra) as u32);
 
-        let new_grids = (rows * cols) as usize;
+    //     let new_grids = (rows * cols) as usize;
 
-        self.unit = VideoSize {
-            width: self.size.width / cols,
-            height: self.size.height / rows,
-        };
+    //     self.unit = VideoSize {
+    //         width: self.size.width / cols,
+    //         height: self.size.height / rows,
+    //     };
 
-        self.grids.resize_with(new_grids, || {
-            Grid {
-                at: Point::new(0, 0),
-                ch: None
-            }
-        });
+    //     self.grids.resize_with(new_grids, || {
+    //         Grid {
+    //             at: Point::new(0, 0),
+    //             ch: None
+    //         }
+    //     });
 
 
-        for (index, grid) in self.grids.iter_mut().enumerate() {
-            let num = index as u32;
-            let row = num / cols;
-            let col = num % cols;
+    //     for (index, grid) in self.grids.iter_mut().enumerate() {
+    //         let num = index as u32;
+    //         let row = num / cols;
+    //         let col = num % cols;
             
-            grid.at = pos_at(&self.unit, row, col);
+    //         grid.at = pos_at(&self.unit, row, col);
 
-            println!("aaa grid.at {:?}, num {num}, row {row}, col {col}", grid.at);
 
-            if let Some(ch) = &mut grid.ch {
-                ch.scaler.change_output(FFYuvImage::FORMAT, self.unit)?;
-            }
-        }
+    //         if let Some(ch) = &mut grid.ch {
+    //             // ch.scaler.change_output(FFYuvImage::FORMAT, &self.unit)?;
+    //         }
+    //     }
         
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
 }
 
 impl LayoutOp for LayoutGrids {
-    fn add_ch(&mut self, ch_id: VChId, flags: VChFlags) -> Result<()> {
+    // fn add_ch(&mut self, ch_id: VChId, flags: VChFlags) -> Result<()> {
         
-        let r = self.grids.iter_mut().find(|x|x.ch.is_none());
+    //     let r = self.grids.iter_mut().find(|x|x.ch.is_none());
 
-        if let Some(grid) = r {
-            grid.ch = Some(GridCh {
-                ch_id,
-                scaler: FFAutoScaler::new(FFYuvImage::FORMAT, self.unit)?,
-            });
-            return Ok(())
-        }
+    //     if let Some(grid) = r {
+    //         grid.ch = Some(GridCh {
+    //             ch_id,
+    //             // scaler: FFAutoScaler::new(FFYuvImage::FORMAT, self.unit)?,
+    //         });
+    //         return Ok(())
+    //     }
 
-        self.grow_grids(1)?;
+    //     self.grow_grids(1)?;
 
-        self.add_ch(ch_id, flags)
-    }
+    //     self.add_ch(ch_id, flags)
+    // }
 
-    fn remove_ch(&mut self, ch_id: &VChId) -> Result<()> {
+    // fn remove_ch(&mut self, ch_id: &VChId) -> Result<()> {
 
-        let pos = self.grids.iter().position(|x|{
-            match &x.ch {
-                Some(ch) => ch.ch_id == *ch_id,
-                None => false,
-            }
-        });
+    //     let pos = self.grids.iter().position(|x|{
+    //         match &x.ch {
+    //             Some(ch) => ch.ch_id == *ch_id,
+    //             None => false,
+    //         }
+    //     });
 
-        if let Some(pos) = pos {
-            // let ch = self.grids[pos].ch.take();
-            for n in pos..self.grids.len()-1 {
-                self.grids[n].ch = self.grids[n+1].ch.take();
-            }
-        }
+    //     if let Some(pos) = pos {
+    //         // let ch = self.grids[pos].ch.take();
+    //         for n in pos..self.grids.len()-1 {
+    //             self.grids[n].ch = self.grids[n+1].ch.take();
+    //         }
+    //     }
+    //     Ok(())
+    // }
+
+    // fn update_ch(&mut self, _ch_id: &VChId, _image: &FFYuvImage) -> Result<()> {
+    //     Ok(())
+    // }
+
+    fn get_output(&mut self, channels: &mut VChannels, canvas: &mut FFYuvImage) -> Result<()> {
+        
+        canvas.fill_color(&YuvColor::BLACK);
+        draw_grid_channels(channels.len(), channels, canvas)?;
+        // for grid in self.grids.iter_mut() {
+        //     if let Some(grid_ch) = &mut grid.ch {
+        //         if let Some(ch) = channels.get_mut(&grid_ch.ch_id) {
+        //             if let Some(image) = &ch.image {
+        //                 let (at,size) = scale_fit(image.frame().width(), image.frame().height(), self.unit.width, self.unit.height);
+                        
+        //                 // let dst = grid_ch.scaler.scale_to(image, &size)?;
+        //                 let dst = ch.scaler.scale_to(image, &size)?;
+        //                 canvas.draw_image(grid.at.add(&at), &dst);
+        //             }
+        //         }
+        //     }
+        // }
+
         Ok(())
     }
+}
 
-    fn update_ch(&mut self, _ch_id: &VChId, _image: &FFYuvImage) -> Result<()> {
-        Ok(())
-    }
+fn draw_grid_channels(num_grids: usize, channels: &mut VChannels, canvas: &mut FFYuvImage) -> Result<()> {
+    
+    let (rows, cols) = calc_rows_cols(num_grids as u32);
 
-    fn get_output(&mut self, channels: &VChannels) -> Result<&FFYuvImage> {
+    let bk_size = canvas.size();
+
+    let grid_size = VideoSize {
+        width: bk_size.width / cols,
+        height: bk_size.height / rows,
+    };
+
+    for (index, (_id, ch)) in channels.iter_mut().enumerate() {
+        let num = index as u32;
+        let row = num / cols;
+        let col = num % cols;
         
-        self.image.fill_color(&YuvColor::BLACK);
-
-        for grid in self.grids.iter_mut() {
-            if let Some(grid_ch) = &mut grid.ch {
-                if let Some(ch) = channels.get(&grid_ch.ch_id) {
-                    if let Some(image) = &ch.image {
-                        let dst = grid_ch.scaler.scale(image)?;
-                        println!("aaa draw {:?}, {:?}, {}x{}", grid_ch.ch_id, grid.at, dst.frame().width(), dst.frame().height());
-                        self.image.draw_image(grid.at, &dst);
-                    }
-                }
-            }
+        if row >= rows || col >= cols {
+            break;
         }
 
-        Ok(&self.image)
+        let grid_at = pos_at(&grid_size, row, col);
+
+        if let Some(image) = &ch.image {
+            let (at,size) = scale_fit(image.frame().width(), image.frame().height(), grid_size.width, grid_size.height);
+            
+            let dst = ch.scaler.scale_to(image, &size)?;
+            canvas.draw_image(grid_at.add(&at), &dst);
+        }
     }
+
+    Ok(())
 }
 
-// #[derive(Clone)]
-struct Grid {
-    at: Point,
-    // size: VideoSize,
-    ch: Option<GridCh>,
-}
+// // #[derive(Clone)]
+// struct Grid {
+//     at: Point,
+//     // size: VideoSize,
+//     ch: Option<GridCh>,
+// }
 
 
-struct GridCh {
-    ch_id: VChId,
-    scaler: FFAutoScaler,
-}
+// struct GridCh {
+//     ch_id: VChId,
+//     // scaler: FFAutoScaler,
+// }
 
 fn calc_rows_cols(num: u32) -> (u32, u32) {
     if num == 0 {

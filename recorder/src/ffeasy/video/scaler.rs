@@ -31,7 +31,6 @@ impl FFAutoScaler {
     const DEFAULT_FLAGS: ff::software::scaling::Flags = ff::software::scaling::Flags::AREA;
 
     pub fn new(format: ff::util::format::Pixel, size: VideoSize) -> Result<Self, ff::Error> {
-        println!("aaa FFAutoScaler::new: {size:?}");
         Ok(Self {
             scaler: ff::software::scaling::Context::get(
                 format,
@@ -45,8 +44,7 @@ impl FFAutoScaler {
         })
     }
 
-    pub fn change_output(&mut self, format: ff::util::format::Pixel, size: VideoSize) -> Result<(), ff::Error> {
-        println!("aaa FFAutoScaler::change_output: {size:?}");
+    pub fn change_output(&mut self, format: ff::util::format::Pixel, size: &VideoSize) -> Result<(), ff::Error> {
 
         let output = self.scaler.output();
 
@@ -67,6 +65,27 @@ impl FFAutoScaler {
             )?;
         }
         Ok(())
+    }
+
+    // pub fn scale_fit(&mut self, src: &FFYuvImage, limits: &VideoSize) -> Result<FFYuvImage, ff::Error> {
+    //     let height = limits.width * src.frame().height() / src.frame().width();
+    //     if height <= limits.height {
+    //         self.scale_to(src, &VideoSize{
+    //             width: limits.width,
+    //             height,
+    //         })
+    //     } else {
+    //         let width = limits.height * src.frame().width() / src.frame().height();
+    //         self.scale_to(src, &VideoSize{
+    //             width,
+    //             height: limits.height,
+    //         })
+    //     }
+    // }
+
+    pub fn scale_to(&mut self, src: &FFYuvImage, size: &VideoSize) -> Result<FFYuvImage, ff::Error> {
+        self.change_output(self.scaler.output().format, size)?;
+        self.scale(src)
     }
 
     pub fn scale(&mut self, src: &FFYuvImage) -> Result<FFYuvImage, ff::Error> {

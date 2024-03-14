@@ -16,15 +16,6 @@ impl FFParameters {
         &self.param
     }
 
-    pub fn get_extra(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                (*self.param.as_ptr()).extradata,
-                (*self.param.as_ptr()).extradata_size as usize,
-            )
-        }
-    }
-
     pub fn set_from(&mut self, src: &Self) -> bool {
         match src.inner().medium() {
             ff::media::Type::Video => {
@@ -56,8 +47,8 @@ impl FFParameters {
         height: i32,
         extradata: &[u8],
     ) {
-        self.set_codec(ff::ffi::AVMediaType::AVMEDIA_TYPE_VIDEO, codec_id);
-        self.set_resolution(width, height);
+        self.set_codec((ff::ffi::AVMediaType::AVMEDIA_TYPE_VIDEO, codec_id));
+        self.set_resolution((width, height));
         self.set_extra(extradata);
     }
 
@@ -67,7 +58,7 @@ impl FFParameters {
         samplerate: i32,
         channels: i32,
     ) {
-        self.set_codec(ff::ffi::AVMediaType::AVMEDIA_TYPE_AUDIO, codec_id);
+        self.set_codec((ff::ffi::AVMediaType::AVMEDIA_TYPE_AUDIO, codec_id));
         self.set_samplerate(samplerate);
         self.set_channels(channels);
     }
@@ -99,7 +90,7 @@ impl FFParameters {
     }
 
 
-    pub fn set_codec(&mut self, medium: ff::ffi::AVMediaType, id: ff::ffi::AVCodecID) {
+    pub fn set_codec(&mut self, (medium, id): (ff::ffi::AVMediaType, ff::ffi::AVCodecID)) {
         unsafe {
             let ptr = self.param.as_mut_ptr();
             (*ptr).codec_type = medium;
@@ -107,7 +98,31 @@ impl FFParameters {
         }
     }
 
-    pub fn set_resolution(&mut self, width: i32, height: i32) {
+    pub fn get_codec(&self) -> (ff::ffi::AVMediaType, ff::ffi::AVCodecID){
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (
+                (*ptr).codec_type,
+                (*ptr).codec_id,
+            )
+        }
+    }
+
+    pub fn get_codec_type(&self) -> ff::ffi::AVMediaType {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (*ptr).codec_type
+        }
+    }
+
+    pub fn get_codec_id(&self) -> ff::ffi::AVCodecID {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (*ptr).codec_id
+        }
+    }
+
+    pub fn set_resolution(&mut self, (width, height): (i32, i32)) {
         unsafe {
             let ptr = self.param.as_mut_ptr();
             (*ptr).width = width;
@@ -136,7 +151,13 @@ impl FFParameters {
             let ptr = self.param.as_mut_ptr();
             (*ptr).framerate = framerate;
         }
-        
+    }
+
+    pub fn get_framerate(&self) -> ff::ffi::AVRational{
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (*ptr).framerate
+        }
     }
 
     pub fn set_extra(&mut self, extradata: &[u8]) {
@@ -151,6 +172,68 @@ impl FFParameters {
             (*ptr).extradata_size = extradata.len() as i32;
         }
     }
+
+    pub fn get_extra(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                (*self.param.as_ptr()).extradata,
+                (*self.param.as_ptr()).extradata_size as usize,
+            )
+        }
+    }
+
+    pub fn set_video_format(&mut self, pixel: ff::util::format::Pixel) {
+        let format: ffmpeg_sys_next::AVPixelFormat = pixel.into();
+        self.set_format(format as i32);
+    }
+
+    pub fn set_audio_format(&mut self, pixel: ff::util::format::Sample) {
+        let format: ffmpeg_sys_next::AVSampleFormat = pixel.into();
+        self.set_format(format as i32);
+    }
+
+    pub fn set_format(&mut self, format: i32) {
+        unsafe {
+            let ptr = self.param.as_mut_ptr();
+            (*ptr).format = format;
+        }
+    }
+
+    pub fn get_format(&self) -> i32 {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (*ptr).format
+        }
+    }
+
+    pub fn get_format_audio(&self) -> ff::ffi::AVSampleFormat {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            std::mem::transmute::<_, ff::ffi::AVSampleFormat>((*ptr).format)
+        }
+    }
+
+    pub fn get_format_video(&self) -> ff::ffi::AVPixelFormat {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            std::mem::transmute::<_, ff::ffi::AVPixelFormat>((*ptr).format)
+        }
+    }
+
+    pub fn set_frame_size(&mut self, frame_size: i32) {
+        unsafe {
+            let ptr = self.param.as_mut_ptr();
+            (*ptr).frame_size = frame_size;
+        }
+    }
+
+    pub fn get_frame_size(&self) -> i32 {
+        unsafe {
+            let ptr = self.param.as_ptr();
+            (*ptr).frame_size
+        }
+    }
+
 }
 
 impl From<ff::codec::Parameters> for FFParameters {
