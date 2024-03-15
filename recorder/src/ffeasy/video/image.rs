@@ -114,22 +114,27 @@ fn draw_yuv_frame(
 	// UINT nOff = 0;
     // let mut noff = 0_usize;
 
-    
+    let src_y_stride = src.stride(0);
     let src_y = src.data(0);
     let src_w = src.width() as usize;
     let src_h = src.height() as usize;
 
-    let dst_w = dst.width() as usize;
+    // let dst_w = dst.width() as usize;
+    let dst_y_stride = dst.stride(0);
     let dst_y = dst.data_mut(0);
 
     // for (int i = 0; i < src->h; i++)
     for i in 0..src_h {
         // nOff = dst->w * (nOffY + i) + nOffX;
-		let noff = dst_w * (off_y + i) + off_x;
-
-		// copy each line
+        // // copy each line
 		// memcpy(dst->y + nOff, src->y + src->w*i, src->w);
-        dst_y[noff..noff + src_w].clone_from_slice(&src_y[src_w*i..src_w*i+src_w]);
+
+		// let noff = dst_w * (off_y + i) + off_x;
+        // dst_y[noff..noff + src_w].clone_from_slice(&src_y[src_w*i..src_w*i+src_w]);
+
+        let dst_off = dst_y_stride * (off_y + i) + off_x;
+        let src_off = src_y_stride*i;
+        dst_y[dst_off..dst_off + src_w].clone_from_slice(&src_y[src_off..src_off+src_w]);
     }
 	
 
@@ -140,9 +145,14 @@ fn draw_yuv_frame(
     let uv_off_y = off_y / 2;
     let uv_src_w = src_w / 2;
     let uv_src_h = src_h / 2;
-    let uv_dst_w = (dst.width() / 2) as usize;
+    // let uv_dst_w = (dst.width() / 2) as usize;
     // let uv_dst_h = dst.h / 2;
  
+    let src_u_stride = src.stride(1);
+    let src_v_stride = src.stride(2);
+
+    let dst_u_stride = dst.stride(1);
+    let dst_v_stride = dst.stride(2);
     
 	// for (int j = 0; j < nUVSrcH; j++)
     for j in 0..uv_src_h {
@@ -150,8 +160,20 @@ fn draw_yuv_frame(
         // memcpy(dst->u + nOff, src->u + nUVSrcW*j, nUVSrcW);
 		// memcpy(dst->v + nOff, src->v + nUVSrcW*j, nUVSrcW);
 
-        let noff = uv_dst_w * (uv_off_y + j) + uv_off_x;
-		dst.data_mut(1)[noff..noff+uv_src_w].copy_from_slice(&src.data(1)[uv_src_w*j..uv_src_w*j+uv_src_w]);
-        dst.data_mut(2)[noff..noff+uv_src_w].copy_from_slice(&src.data(2)[uv_src_w*j..uv_src_w*j+uv_src_w]);
+        // let noff = uv_dst_w * (uv_off_y + j) + uv_off_x;
+		// dst.data_mut(1)[noff..noff+uv_src_w].copy_from_slice(&src.data(1)[uv_src_w*j..uv_src_w*j+uv_src_w]);
+        // dst.data_mut(2)[noff..noff+uv_src_w].copy_from_slice(&src.data(2)[uv_src_w*j..uv_src_w*j+uv_src_w]);
+
+        {
+            let dst_off = dst_u_stride * (uv_off_y + j) + uv_off_x;
+            let src_off = src_u_stride*j;
+            dst.data_mut(1)[dst_off..dst_off+uv_src_w].copy_from_slice(&src.data(1)[src_off..src_off+uv_src_w]);
+        }
+
+        {
+            let dst_off = dst_v_stride * (uv_off_y + j) + uv_off_x;
+            let src_off = src_v_stride*j;
+            dst.data_mut(2)[dst_off..dst_off+uv_src_w].copy_from_slice(&src.data(2)[src_off..src_off+uv_src_w]);
+        }
 	}
 }

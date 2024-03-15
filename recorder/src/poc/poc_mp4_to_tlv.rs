@@ -19,6 +19,7 @@ fn test_multi_mp4_to_tlv() {
     let output_tlv = "/tmp/output.tlv2";
 
     let inputs: Vec<&Path> = vec![
+        "/tmp/sample-data/li_guang_yao.mp4".as_ref(),
         "/tmp/sample-data/sample.mp4".as_ref(),
         "/tmp/sample-data/ForBiggerBlazes.mp4".as_ref(),
         // "/Users/simon/Downloads/sample-5s.mp4".as_ref(),

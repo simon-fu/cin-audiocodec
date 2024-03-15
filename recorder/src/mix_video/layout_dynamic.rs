@@ -3,7 +3,7 @@
 use ffmpeg_next as ff;
 use crate::ffeasy::video::{image::FFYuvImage, YuvColor};
 
-use super::{layout_big_left::LayoutBigLeft, layout_grids::LayoutGrids, LayoutOp, VChFlag, VChId, VChannels};
+use super::{layout_big_left::LayoutBigLeft, layout_grids::LayoutGrids, LayoutOp, VChannels};
 
 type Result<T> = std::result::Result<T, ff::Error>;
 

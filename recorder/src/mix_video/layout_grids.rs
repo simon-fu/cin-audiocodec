@@ -150,7 +150,8 @@ fn draw_grid_channels(num_grids: usize, channels: &mut VChannels, canvas: &mut F
             let (at,size) = scale_fit(image.frame().width(), image.frame().height(), grid_size.width, grid_size.height);
             
             let dst = ch.scaler.scale_to(image, &size)?;
-            canvas.draw_image(grid_at.add(&at), &dst);
+            let pt = grid_at.add(&at);
+            canvas.draw_image(pt, &dst);
         }
     }
 
